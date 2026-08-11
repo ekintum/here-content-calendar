@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026 Content Calendar</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --border: #e0e2e7;
+    --border-strong: #c7cad1;
+    --text: #1f2430;
+    --text-secondary: #62677a;
+    --text-muted: #9299ab;
+    --accent: #2e5fd9;
+    --accent-light: #eaf0ff;
+    --today: #ff8a3d;
+    --radius: 8px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .topbar h1 {
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0;
+  }
+  .topbar .sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  button {
+    font-family: var(--font);
+    font-size: 13px;
+    border: 1px solid var(--border-strong);
+    background: var(--card);
+    color: var(--text);
+    padding: 7px 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+  button:hover { background: #f0f1f4; }
+  button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  button.primary:hover { background: #244cb0; }
+  button.icon { padding: 7px 10px; font-weight: 600; }
+  select, input, textarea {
+    font-family: var(--font);
+    font-size: 13px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    padding: 7px 10px;
+    color: var(--text);
+    background: var(--card);
+  }
+  textarea { resize: vertical; }
+
+  .month-label {
+    font-size: 16px;
+    font-weight: 600;
+    min-width: 150px;
+    text-align: center;
+  }
+
+  .stats {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .stats b { color: var(--text); }
+
+  .legend {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .legend .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+  }
+
+  .grid {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .weekday-row, .week-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+  }
+  .weekday-row div {
+    padding: 10px 0;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: #fafbfc;
+    border-bottom: 1px solid var(--border);
+  }
+  .day {
+    min-height: 118px;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 8px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    transition: background 0.1s;
+  }
+  .day:hover { background: #fafbff; }
+  .day.pad { background: #fbfbfc; cursor: default; }
+  .day.pad:hover { background: #fbfbfc; }
+  .week-row .day:nth-child(7) { border-right: none; }
+
+  .day-num {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    align-self: flex-end;
+  }
+  .day.today .day-num {
+    background: var(--today);
+    color: #fff;
+    border-radius: 50%;
+    width: 20px; height: 20px;
+    display: flex; align-items: center; justify-content: center;
+    align-self: flex-end;
+  }
+
+  .chips { display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
+  .chip {
+    font-size: 11px;
+    padding: 3px 6px;
+    border-radius: 5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #fff;
+  }
+  .add-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: auto;
+  }
+
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(20,22,30,0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    padding: 20px;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: var(--card);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 480px;
+    max-height: 88vh;
+    overflow-y: auto;
+    padding: 20px 22px;
+  }
+  .modal h2 { font-size: 16px; margin: 0 0 2px; }
+  .modal .date-line { font-size: 13px; color: var(--text-secondary); margin-bottom: 14px; }
+
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: var(--text-secondary); }
+  .field input, .field select, .field textarea { width: 100%; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .img-add-row { display: flex; gap: 6px; margin-bottom: 8px; }
+  .img-add-row input[type="url"] { flex: 1; }
+  .img-add-row button { flex-shrink: 0; white-space: nowrap; }
+  .img-hint { font-size: 11px; color: var(--text-muted); margin: 2px 0 8px; }
+
+  .img-thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
+  .img-thumb {
+    position: relative;
+    width: 76px; height: 76px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    background: #f0f1f4;
+  }
+  .img-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .img-thumb .cover-badge {
+    position: absolute; bottom: 3px; left: 3px;
+    background: rgba(20,22,30,0.7); color: #fff;
+    font-size: 9px; padding: 1px 5px; border-radius: 4px;
+  }
+  .img-thumb .remove-btn {
+    position: absolute; top: 2px; right: 2px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: rgba(20,22,30,0.7); color: #fff;
+    border: none; font-size: 12px; line-height: 1;
+    cursor: pointer; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .img-thumb .order-btns {
+    position: absolute; bottom: 2px; right: 2px; display: flex; gap: 2px;
+  }
+  .img-thumb .order-btns button {
+    width: 16px; height: 16px; border-radius: 3px;
+    background: rgba(20,22,30,0.7); color: #fff;
+    border: none; font-size: 9px; line-height: 1; padding: 0;
+    cursor: pointer;
+  }
+
+  .thumb-strip { display: flex; gap: 3px; }
+  .thumb-strip img {
+    width: 20px; height: 20px; border-radius: 4px; object-fit: cover;
+    border: 1px solid var(--border);
+  }
+
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+  .modal-actions .spacer { flex: 1; }
+
+  #importInput { display: none; }
+  #fileInput { display: none; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; font-weight: 600;
+    padding: 3px 9px; border-radius: 999px;
+    color: #fff;
+  }
+  .view-gallery {
+    display: flex; gap: 6px; overflow-x: auto;
+    margin: 12px 0;
+  }
+  .view-gallery img {
+    height: 200px; border-radius: var(--radius);
+    border: 1px solid var(--border);
+    object-fit: cover; flex-shrink: 0;
+  }
+  .view-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .view-meta .time { font-size: 13px; color: var(--text-secondary); }
+  .view-caption { font-size: 14px; line-height: 1.5; margin: 12px 0 8px; white-space: pre-wrap; }
+  .view-hashtags { font-size: 13px; color: var(--accent); word-break: break-word; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div>
+      <h1>2026 content calendar</h1>
+      <div class="sub">Click a scheduled post to view it, or click empty space on a day to schedule a new one</div>
+    </div>
+    <div class="controls">
+      <select id="platformFilter">
+        <option value="">All platforms</option>
+        <option value="Instagram">Instagram</option>
+        <option value="TikTok">TikTok</option>
+        <option value="Email">Email</option>
+      </select>
+      <button id="exportBtn">Export JSON</button>
+      <button id="importBtn">Import JSON</button>
+      <input type="file" id="importInput" accept="application/json">
+    </div>
+  </div>
+
+  <div class="controls" style="margin-bottom:14px;">
+    <button class="icon" id="prevBtn">&larr;</button>
+    <div class="month-label" id="monthLabel"></div>
+    <button class="icon" id="nextBtn">&rarr;</button>
+    <select id="monthJump"></select>
+    <button id="todayBtn">Today</button>
+  </div>
+
+  <div class="stats">
+    <div>Posts this month: <b id="statMonth">0</b></div>
+    <div>Posts this year: <b id="statYear">0</b></div>
+  </div>
+
+  <div class="legend" id="legend"></div>
+
+  <div class="grid">
+    <div class="weekday-row">
+      <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+    </div>
+    <div id="calendarBody"></div>
+  </div>
+
+</div>
+
+<div class="overlay" id="viewOverlay">
+  <div class="modal">
+    <h2>Scheduled post</h2>
+    <div class="date-line" id="viewDate"></div>
+
+    <div class="view-meta">
+      <span class="badge" id="viewBadge"></span>
+      <span class="time" id="viewTime"></span>
+    </div>
+
+    <div class="view-gallery" id="viewGallery"></div>
+
+    <div class="view-caption" id="viewCaption"></div>
+    <div class="view-hashtags" id="viewHashtags"></div>
+
+    <div class="modal-actions">
+      <button type="button" id="viewDeleteBtn">Delete</button>
+      <div class="spacer"></div>
+      <button type="button" id="viewCloseBtn">Close</button>
+      <button type="button" id="viewEditBtn" class="primary">Edit</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="formTitle">Schedule a post</h2>
+    <div class="date-line" id="modalDate"></div>
+
+    <form id="postForm">
+      <input type="hidden" id="postId">
+      <div class="row2">
+        <div class="field">
+          <label for="time">Time</label>
+          <input type="time" id="time" value="09:00">
+        </div>
+        <div class="field">
+          <label for="platform">Platform</label>
+          <select id="platform">
+            <option>Instagram</option>
+            <option>TikTok</option>
+            <option>Email</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" id="igFormatField" style="display:none;">
+        <label for="igFormat">Instagram format</label>
+        <select id="igFormat">
+          <option>Post</option>
+          <option>Reel</option>
+          <option>Story</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="caption">Caption</label>
+        <textarea id="caption" rows="4" placeholder="Write the post copy..."></textarea>
+      </div>
+      <div class="field">
+        <label for="hashtags">Hashtags</label>
+        <input type="text" id="hashtags" placeholder="#example #hashtags">
+      </div>
+      <div class="field">
+        <label>Images</label>
+        <div class="img-add-row">
+          <input type="url" id="imageUrlInput" placeholder="Paste an image URL...">
+          <button type="button" id="addImageUrlBtn">Add link</button>
+          <button type="button" id="uploadImageBtn">Upload</button>
+          <input type="file" id="fileInput" accept="image/*" multiple>
+        </div>
+        <div class="img-hint">Add multiple images to post a carousel. First image is the cover. Uploaded photos are stored inside this file, so keep an eye on file size for large photo libraries.</div>
+        <div class="img-thumbs" id="imgThumbs"></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="deleteBtn" style="display:none;">Delete</button>
+        <div class="spacer"></div>
+        <button type="button" id="cancelBtn">Cancel</button>
+        <button type="submit" class="primary">Save post</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="syncStatus" style="position:fixed; bottom:14px; right:14px; font-size:12px; padding:6px 12px; border-radius:999px; background:var(--card); border:1px solid var(--border); color:var(--text-secondary); z-index:40;">Connecting…</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+  const YEAR = 2026;
+  const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const PLATFORM_COLORS = {
+    Instagram: '#d4527e',
+    TikTok: '#2c2c2a',
+    Email: '#185fa5'
+  };
+
+  const SUPABASE_URL = 'https://ybjtufzyeyxtfyurisho.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlianR1Znp5ZXl4dGZ5dXJpc2hvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0NzUxNjUsImV4cCI6MjEwMjA1MTE2NX0.VkoZ7bl5cKdpe_QgRr-390Wj0RJ1N4cchwzO1EN3fWQ';
+  const TABLE = 'calendar_posts';
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  function setSyncStatus(text, ok) {
+    const el = document.getElementById('syncStatus');
+    el.textContent = text;
+    el.style.borderColor = ok ? 'var(--border)' : '#e24b4a';
+    el.style.color = ok ? 'var(--text-secondary)' : '#e24b4a';
+  }
+
+  function rowToPost(row) {
+    return {
+      id: row.id,
+      time: row.post_time || '',
+      platform: row.platform,
+      igFormat: row.ig_format || '',
+      caption: row.caption || '',
+      hashtags: row.hashtags || '',
+      images: row.images || []
+    };
+  }
+
+  function postToRow(dateStr, post) {
+    return {
+      id: post.id,
+      post_date: dateStr,
+      post_time: post.time || null,
+      platform: post.platform,
+      ig_format: post.igFormat || null,
+      caption: post.caption || null,
+      hashtags: post.hashtags || null,
+      images: post.images || []
+    };
+  }
+
+  async function fetchAllData() {
+    const { data: rows, error } = await sb.from(TABLE).select('*').order('post_time', { ascending: true });
+    if (error) throw error;
+    const grouped = {};
+    rows.forEach(row => {
+      const ds = row.post_date;
+      if (!grouped[ds]) grouped[ds] = [];
+      grouped[ds].push(rowToPost(row));
+    });
+    return grouped;
+  }
+
+  async function seedExampleIfEmpty() {
+    const { count, error } = await sb.from(TABLE).select('*', { count: 'exact', head: true });
+    if (error) throw error;
+    if (count === 0) {
+      await sb.from(TABLE).insert([{
+        id: 'example-1',
+        post_date: '2026-01-01',
+        post_time: '09:00',
+        platform: 'Instagram',
+        ig_format: 'Post',
+        caption: "New Year, new content! Kicking off 2026 with big goals — here's to a year of showing up.",
+        hashtags: '#NewYear2026 #ContentCalendar #GoalSetting',
+        images: [
+          { id: 'img-a', src: 'https://picsum.photos/seed/newyear2026a/400/300' },
+          { id: 'img-b', src: 'https://picsum.photos/seed/newyear2026b/400/300' }
+        ]
+      }]);
+    }
+  }
+
+  async function savePost(dateStr, post) {
+    const row = postToRow(dateStr, post);
+    const { error } = await sb.from(TABLE).upsert(row);
+    if (error) throw error;
+  }
+
+  async function deletePostRemote(id) {
+    const { error } = await sb.from(TABLE).delete().eq('id', id);
+    if (error) throw error;
+  }
+
+  async function refreshData() {
+    data = await fetchAllData();
+    render();
+  }
+
+  let data = {};
+  let today = new Date();
+  let viewYear = YEAR;
+  let viewMonth = (today.getFullYear() === YEAR) ? today.getMonth() : 0;
+  let activeDateStr = null;
+  let activeEditId = null;
+  let formImages = [];
+
+  function postImages(p) {
+    if (p.images && p.images.length) return p.images;
+    if (p.imageLink) return [{ id: 'legacy', src: p.imageLink }];
+    return [];
+  }
+
+  function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+  function dateStr(y, m, d) { return y + '-' + pad2(m + 1) + '-' + pad2(d); }
+
+  function buildLegend() {
+    const el = document.getElementById('legend');
+    el.innerHTML = '';
+    Object.keys(PLATFORM_COLORS).forEach(p => {
+      const span = document.createElement('span');
+      span.innerHTML = '<span class="dot" style="background:' + PLATFORM_COLORS[p] + '"></span>' + p;
+      el.appendChild(span);
+    });
+  }
+
+  function buildMonthJump() {
+    const sel = document.getElementById('monthJump');
+    sel.innerHTML = '';
+    MONTHS.forEach((m, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = m + ' ' + YEAR;
+      sel.appendChild(opt);
+    });
+    sel.value = viewMonth;
+    sel.addEventListener('change', () => {
+      viewMonth = parseInt(sel.value, 10);
+      render();
+    });
+  }
+
+  function renderCalendar() {
+    const body = document.getElementById('calendarBody');
+    body.innerHTML = '';
+    document.getElementById('monthLabel').textContent = MONTHS[viewMonth] + ' ' + viewYear;
+    document.getElementById('monthJump').value = viewMonth;
+
+    const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const filter = document.getElementById('platformFilter').value;
+
+    const cells = [];
+    for (let i = 0; i < firstDay; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    while (cells.length % 7 !== 0) cells.push(null);
+
+    let weekRow;
+    let monthCount = 0;
+
+    cells.forEach((d, idx) => {
+      if (idx % 7 === 0) {
+        weekRow = document.createElement('div');
+        weekRow.className = 'week-row';
+        body.appendChild(weekRow);
+      }
+      const cell = document.createElement('div');
+      cell.className = 'day';
+
+      if (d === null) {
+        cell.classList.add('pad');
+        weekRow.appendChild(cell);
+        return;
+      }
+
+      const ds = dateStr(viewYear, viewMonth, d);
+      const isToday = (viewYear === today.getFullYear() && viewMonth === today.getMonth() && d === today.getDate());
+      if (isToday) cell.classList.add('today');
+
+      const num = document.createElement('div');
+      num.className = 'day-num';
+      num.textContent = d;
+      cell.appendChild(num);
+
+      const chipsWrap = document.createElement('div');
+      chipsWrap.className = 'chips';
+      let posts = data[ds] || [];
+      if (filter) posts = posts.filter(p => p.platform === filter);
+      posts.forEach(p => {
+        monthCount += 1;
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.style.background = PLATFORM_COLORS[p.platform] || '#888';
+        const platformLabel = (p.platform === 'Instagram' && p.igFormat) ? ('IG ' + p.igFormat) : p.platform;
+        const imgCount = postImages(p).length;
+        const imgLabel = imgCount > 1 ? (' · ' + imgCount + ' photos') : '';
+        chip.textContent = (p.time ? p.time + ' · ' : '') + platformLabel + imgLabel + (p.caption ? ' · ' + p.caption.slice(0, 16) : '');
+        chip.title = p.caption || '';
+        chip.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openViewModal(ds, p.id);
+        });
+        cell.appendChild(chip);
+      });
+      cell.appendChild(chipsWrap);
+
+      cell.addEventListener('click', () => openAddModal(ds));
+      weekRow.appendChild(cell);
+    });
+
+    document.getElementById('statMonth').textContent = monthCount;
+
+    let yearCount = 0;
+    Object.keys(data).forEach(k => { yearCount += data[k].length; });
+    document.getElementById('statYear').textContent = yearCount;
+  }
+
+  function render() {
+    renderCalendar();
+  }
+
+  function dateLabel(ds) {
+    const [y, m, d] = ds.split('-').map(Number);
+    return MONTHS[m - 1] + ' ' + d + ', ' + y;
+  }
+
+  function openAddModal(ds) {
+    activeDateStr = ds;
+    activeEditId = null;
+    document.getElementById('formTitle').textContent = 'Schedule a post';
+    document.getElementById('modalDate').textContent = dateLabel(ds);
+    resetForm();
+    document.getElementById('overlay').classList.add('open');
+  }
+
+  function openEditModal(ds, id) {
+    activeDateStr = ds;
+    document.getElementById('formTitle').textContent = 'Edit post';
+    document.getElementById('modalDate').textContent = dateLabel(ds);
+    loadPostIntoForm(id);
+    document.getElementById('overlay').classList.add('open');
+  }
+
+  function openViewModal(ds, id) {
+    const post = (data[ds] || []).find(p => p.id === id);
+    if (!post) return;
+    activeDateStr = ds;
+    activeEditId = id;
+
+    document.getElementById('viewDate').textContent = dateLabel(ds);
+    const badge = document.getElementById('viewBadge');
+    badge.textContent = (post.platform === 'Instagram' && post.igFormat) ? ('Instagram · ' + post.igFormat) : post.platform;
+    badge.style.background = PLATFORM_COLORS[post.platform] || '#888';
+    document.getElementById('viewTime').textContent = post.time || '';
+
+    const gallery = document.getElementById('viewGallery');
+    const imgs = postImages(post);
+    gallery.innerHTML = imgs.map(im => '<img src="' + im.src + '">').join('');
+
+    document.getElementById('viewCaption').textContent = post.caption || '(no caption yet)';
+    document.getElementById('viewHashtags').textContent = post.hashtags || '';
+
+    document.getElementById('viewOverlay').classList.add('open');
+  }
+
+  function closeViewModal() {
+    document.getElementById('viewOverlay').classList.remove('open');
+  }
+
+  function loadPostIntoForm(id) {
+    const posts = data[activeDateStr] || [];
+    const post = posts.find(p => p.id === id);
+    if (!post) return;
+    activeEditId = id;
+    document.getElementById('postId').value = id;
+    document.getElementById('time').value = post.time || '09:00';
+    document.getElementById('platform').value = post.platform || 'Instagram';
+    document.getElementById('igFormat').value = post.igFormat || 'Post';
+    document.getElementById('caption').value = post.caption || '';
+    document.getElementById('hashtags').value = post.hashtags || '';
+    formImages = postImages(post).map(im => ({ id: im.id, src: im.src }));
+    document.getElementById('deleteBtn').style.display = 'inline-block';
+    renderImageThumbs();
+    updateIgFormatVisibility();
+  }
+
+  function resetForm() {
+    activeEditId = null;
+    document.getElementById('postId').value = '';
+    document.getElementById('time').value = '09:00';
+    document.getElementById('platform').value = 'Instagram';
+    document.getElementById('igFormat').value = 'Post';
+    document.getElementById('caption').value = '';
+    document.getElementById('hashtags').value = '';
+    document.getElementById('imageUrlInput').value = '';
+    formImages = [];
+    document.getElementById('deleteBtn').style.display = 'none';
+    renderImageThumbs();
+    updateIgFormatVisibility();
+  }
+
+  function updateIgFormatVisibility() {
+    const platform = document.getElementById('platform').value;
+    document.getElementById('igFormatField').style.display = (platform === 'Instagram') ? 'block' : 'none';
+  }
+
+  function renderImageThumbs() {
+    const wrap = document.getElementById('imgThumbs');
+    wrap.innerHTML = '';
+    formImages.forEach((im, idx) => {
+      const box = document.createElement('div');
+      box.className = 'img-thumb';
+      box.innerHTML =
+        '<img src="' + im.src + '">' +
+        (idx === 0 ? '<span class="cover-badge">Cover</span>' : '') +
+        '<button type="button" class="remove-btn" data-idx="' + idx + '" title="Remove">&times;</button>' +
+        '<div class="order-btns">' +
+          (idx > 0 ? '<button type="button" data-move="-1" data-idx="' + idx + '">&#8592;</button>' : '') +
+          (idx < formImages.length - 1 ? '<button type="button" data-move="1" data-idx="' + idx + '">&#8594;</button>' : '') +
+        '</div>';
+      wrap.appendChild(box);
+    });
+    wrap.querySelectorAll('.remove-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        formImages.splice(parseInt(btn.dataset.idx, 10), 1);
+        renderImageThumbs();
+      });
+    });
+    wrap.querySelectorAll('[data-move]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.idx, 10);
+        const dir = parseInt(btn.dataset.move, 10);
+        const target = idx + dir;
+        if (target < 0 || target >= formImages.length) return;
+        const tmp = formImages[idx];
+        formImages[idx] = formImages[target];
+        formImages[target] = tmp;
+        renderImageThumbs();
+      });
+    });
+  }
+
+  function addImageFromUrl() {
+    const input = document.getElementById('imageUrlInput');
+    const url = input.value.trim();
+    if (!url) return;
+    formImages.push({ id: 'i' + Date.now() + Math.floor(Math.random() * 1000), src: url });
+    input.value = '';
+    renderImageThumbs();
+  }
+
+  function handleFileUpload(files) {
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        formImages.push({ id: 'i' + Date.now() + Math.floor(Math.random() * 1000), src: evt.target.result });
+        renderImageThumbs();
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function closeModal() {
+    document.getElementById('overlay').classList.remove('open');
+    activeDateStr = null;
+    activeEditId = null;
+  }
+
+  document.getElementById('platform').addEventListener('change', updateIgFormatVisibility);
+  document.getElementById('addImageUrlBtn').addEventListener('click', addImageFromUrl);
+  document.getElementById('imageUrlInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addImageFromUrl(); }
+  });
+  document.getElementById('uploadImageBtn').addEventListener('click', () => {
+    document.getElementById('fileInput').click();
+  });
+  document.getElementById('fileInput').addEventListener('change', (e) => {
+    handleFileUpload(e.target.files);
+    e.target.value = '';
+  });
+
+  document.getElementById('postForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const platform = document.getElementById('platform').value;
+    const post = {
+      id: activeEditId || ('p' + Date.now() + Math.floor(Math.random() * 1000)),
+      time: document.getElementById('time').value,
+      platform: platform,
+      igFormat: platform === 'Instagram' ? document.getElementById('igFormat').value : '',
+      caption: document.getElementById('caption').value.trim(),
+      hashtags: document.getElementById('hashtags').value.trim(),
+      images: formImages.slice()
+    };
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    try {
+      await savePost(activeDateStr, post);
+      await refreshData();
+      closeModal();
+    } catch (err) {
+      alert('Could not save this post — check your connection and try again.');
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  document.getElementById('deleteBtn').addEventListener('click', async () => {
+    if (!activeEditId) return;
+    try {
+      await deletePostRemote(activeEditId);
+      await refreshData();
+      closeModal();
+    } catch (err) {
+      alert('Could not delete this post — check your connection and try again.');
+    }
+  });
+
+  document.getElementById('cancelBtn').addEventListener('click', closeModal);
+  document.getElementById('overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'overlay') closeModal();
+  });
+
+  document.getElementById('viewCloseBtn').addEventListener('click', closeViewModal);
+  document.getElementById('viewOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'viewOverlay') closeViewModal();
+  });
+  document.getElementById('viewEditBtn').addEventListener('click', () => {
+    const ds = activeDateStr;
+    const id = activeEditId;
+    closeViewModal();
+    openEditModal(ds, id);
+  });
+  document.getElementById('viewDeleteBtn').addEventListener('click', async () => {
+    if (!activeEditId) return;
+    try {
+      await deletePostRemote(activeEditId);
+      await refreshData();
+      closeViewModal();
+    } catch (err) {
+      alert('Could not delete this post — check your connection and try again.');
+    }
+  });
+
+  document.getElementById('prevBtn').addEventListener('click', () => {
+    viewMonth -= 1;
+    if (viewMonth < 0) { viewMonth = 11; }
+    render();
+  });
+  document.getElementById('nextBtn').addEventListener('click', () => {
+    viewMonth += 1;
+    if (viewMonth > 11) { viewMonth = 0; }
+    render();
+  });
+  document.getElementById('todayBtn').addEventListener('click', () => {
+    viewMonth = (today.getFullYear() === YEAR) ? today.getMonth() : 0;
+    render();
+  });
+  document.getElementById('platformFilter').addEventListener('change', render);
+
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'content-calendar-2026-backup.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById('importBtn').addEventListener('click', () => {
+    document.getElementById('importInput').click();
+  });
+  document.getElementById('importInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const imported = JSON.parse(evt.target.result);
+        const rows = [];
+        Object.keys(imported).forEach(ds => {
+          imported[ds].forEach(post => rows.push(postToRow(ds, post)));
+        });
+        if (rows.length) {
+          const { error } = await sb.from(TABLE).upsert(rows);
+          if (error) throw error;
+        }
+        await refreshData();
+      } catch (err) {
+        alert('Could not import that file. Make sure it is a JSON export from this calendar.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  });
+
+  async function initApp() {
+    buildLegend();
+    buildMonthJump();
+    try {
+      await seedExampleIfEmpty();
+      await refreshData();
+      setSyncStatus('Synced with team', true);
+    } catch (err) {
+      setSyncStatus('Offline — changes will not save', false);
+      return;
+    }
+
+    sb.channel('calendar_posts_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: TABLE }, () => {
+        refreshData();
+      })
+      .subscribe();
+  }
+
+  initApp();
+</script>
+</body>
+</html>
