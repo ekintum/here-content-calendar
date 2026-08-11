@@ -173,14 +173,26 @@
     overflow-y: auto;
   }
   .chip {
+    display: flex;
+    align-items: center;
+    gap: 5px;
     font-size: 11px;
     padding: 3px 6px;
     border-radius: 5px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
     color: #fff;
     flex-shrink: 0;
+  }
+  .chip .chip-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .chip-status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.7);
   }
   .add-hint {
     font-size: 11px;
@@ -284,6 +296,38 @@
   .view-meta .time { font-size: 13px; color: var(--text-secondary); }
   .view-caption { font-size: 14px; line-height: 1.5; margin: 12px 0 8px; white-space: pre-wrap; }
   .view-hashtags { font-size: 13px; color: var(--accent); word-break: break-word; }
+
+  .chip[draggable="true"] { cursor: grab; }
+  .chip.dragging { opacity: 0.4; }
+  .day.drag-over { background: var(--accent-light); box-shadow: inset 0 0 0 2px var(--accent); }
+
+  @media (max-width: 720px) {
+    body { padding: 12px; }
+    .topbar { flex-direction: column; align-items: flex-start; }
+    .topbar h1 { font-size: 18px; }
+    .topbar .sub { font-size: 12px; }
+    .controls { width: 100%; }
+    .controls select, .controls button { font-size: 12px; padding: 6px 9px; }
+    .month-label { min-width: 0; font-size: 14px; flex: 1; }
+    .stats { flex-wrap: wrap; gap: 8px; font-size: 12px; }
+    .legend { gap: 6px; font-size: 11px; }
+    .legend span { font-size: 11px; }
+
+    .weekday-row div { padding: 6px 0; font-size: 10px; }
+    .day { height: 78px; padding: 4px; gap: 2px; }
+    .day-num { font-size: 10px; }
+    .day.today .day-num { width: 16px; height: 16px; font-size: 10px; }
+    .chip { font-size: 9px; padding: 2px 4px; gap: 3px; }
+    .chip-status-dot { width: 5px; height: 5px; }
+
+    .overlay { padding: 0; align-items: flex-end; }
+    .modal { max-width: 100%; max-height: 92vh; border-radius: 16px 16px 0 0; padding: 16px; }
+    .row2 { grid-template-columns: 1fr; gap: 0; }
+    .img-thumb { width: 64px; height: 64px; }
+    .view-gallery img { height: 140px; }
+    .img-add-row { flex-wrap: wrap; }
+    .img-add-row input[type="url"] { width: 100%; }
+  }
 </style>
 </head>
 <body>
@@ -301,6 +345,16 @@
         <option value="TikTok">TikTok</option>
         <option value="Email">Email</option>
       </select>
+      <select id="statusFilter">
+        <option value="">All statuses</option>
+        <option value="Planned">Planned</option>
+        <option value="Design in progress">Design in progress</option>
+        <option value="Scheduled">Scheduled</option>
+        <option value="Published">Published</option>
+      </select>
+      <a href="https://www.figma.com/design/lkclEKLdcYCmwhBkrDht4E/Admin---Marketing?node-id=912-2700&t=MDCW6AeKSpgdGTUx-1" target="_blank" rel="noopener" style="text-decoration:none;">
+        <button type="button">Design file</button>
+      </a>
       <button id="exportBtn">Export JSON</button>
       <button id="importBtn">Import JSON</button>
       <input type="file" id="importInput" accept="application/json">
@@ -338,6 +392,7 @@
 
     <div class="view-meta">
       <span class="badge" id="viewBadge"></span>
+      <span class="badge" id="viewStatusBadge"></span>
       <span class="time" id="viewTime"></span>
     </div>
 
@@ -362,6 +417,10 @@
 
     <form id="postForm">
       <input type="hidden" id="postId">
+      <div class="field">
+        <label for="postDate">Date</label>
+        <input type="date" id="postDate" min="2026-01-01" max="2026-12-31">
+      </div>
       <div class="row2">
         <div class="field">
           <label for="time">Time</label>
@@ -375,6 +434,15 @@
             <option>Email</option>
           </select>
         </div>
+      </div>
+      <div class="field">
+        <label for="status">Status</label>
+        <select id="status">
+          <option>Planned</option>
+          <option>Design in progress</option>
+          <option>Scheduled</option>
+          <option>Published</option>
+        </select>
       </div>
       <div class="field" id="igFormatField" style="display:none;">
         <label for="igFormat">Instagram format</label>
@@ -425,6 +493,12 @@
     TikTok: '#2c2c2a',
     Email: '#185fa5'
   };
+  const STATUS_COLORS = {
+    'Planned': '#888780',
+    'Design in progress': '#ba7517',
+    'Scheduled': '#378add',
+    'Published': '#3b6d11'
+  };
 
   const SUPABASE_URL = 'https://ybjtufzyeyxtfyurisho.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlianR1Znp5ZXl4dGZ5dXJpc2hvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0NzUxNjUsImV4cCI6MjEwMjA1MTE2NX0.VkoZ7bl5cKdpe_QgRr-390Wj0RJ1N4cchwzO1EN3fWQ';
@@ -444,6 +518,7 @@
       time: row.post_time || '',
       platform: row.platform,
       igFormat: row.ig_format || '',
+      status: row.status || 'Planned',
       caption: row.caption || '',
       hashtags: row.hashtags || '',
       images: row.images || []
@@ -457,6 +532,7 @@
       post_time: post.time || null,
       platform: post.platform,
       ig_format: post.igFormat || null,
+      status: post.status || 'Planned',
       caption: post.caption || null,
       hashtags: post.hashtags || null,
       images: post.images || []
@@ -485,6 +561,7 @@
         post_time: '09:00',
         platform: 'Instagram',
         ig_format: 'Post',
+        status: 'Scheduled',
         caption: "New Year, new content! Kicking off 2026 with big goals — here's to a year of showing up.",
         hashtags: '#NewYear2026 #ContentCalendar #GoalSetting',
         images: [
@@ -503,6 +580,11 @@
 
   async function deletePostRemote(id) {
     const { error } = await sb.from(TABLE).delete().eq('id', id);
+    if (error) throw error;
+  }
+
+  async function movePostDate(id, toDate) {
+    const { error } = await sb.from(TABLE).update({ post_date: toDate }).eq('id', id);
     if (error) throw error;
   }
 
@@ -536,6 +618,15 @@
       span.innerHTML = '<span class="dot" style="background:' + PLATFORM_COLORS[p] + '"></span>' + p;
       el.appendChild(span);
     });
+    const sep = document.createElement('span');
+    sep.textContent = '|';
+    sep.style.color = 'var(--border-strong)';
+    el.appendChild(sep);
+    Object.keys(STATUS_COLORS).forEach(s => {
+      const span = document.createElement('span');
+      span.innerHTML = '<span class="dot" style="background:' + STATUS_COLORS[s] + '"></span>' + s;
+      el.appendChild(span);
+    });
   }
 
   function buildMonthJump() {
@@ -563,6 +654,7 @@
     const firstDay = new Date(viewYear, viewMonth, 1).getDay();
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
     const filter = document.getElementById('platformFilter').value;
+    const statusFilterVal = document.getElementById('statusFilter').value;
 
     const cells = [];
     for (let i = 0; i < firstDay; i++) cells.push(null);
@@ -600,6 +692,7 @@
       chipsWrap.className = 'chips';
       let posts = data[ds] || [];
       if (filter) posts = posts.filter(p => p.platform === filter);
+      if (statusFilterVal) posts = posts.filter(p => (p.status || 'Planned') === statusFilterVal);
       posts.forEach(p => {
         monthCount += 1;
         const chip = document.createElement('div');
@@ -608,17 +701,57 @@
         const platformLabel = (p.platform === 'Instagram' && p.igFormat) ? ('IG ' + p.igFormat) : p.platform;
         const imgCount = postImages(p).length;
         const imgLabel = imgCount > 1 ? (' · ' + imgCount + ' photos') : '';
-        chip.textContent = (p.time ? p.time + ' · ' : '') + platformLabel + imgLabel + (p.caption ? ' · ' + p.caption.slice(0, 16) : '');
-        chip.title = p.caption || '';
+        const dot = document.createElement('span');
+        dot.className = 'chip-status-dot';
+        dot.style.background = STATUS_COLORS[p.status] || '#888';
+        const label = document.createElement('span');
+        label.className = 'chip-label';
+        label.textContent = (p.time ? p.time + ' · ' : '') + platformLabel + imgLabel + (p.caption ? ' · ' + p.caption.slice(0, 16) : '');
+        chip.appendChild(dot);
+        chip.appendChild(label);
+        chip.title = (p.status || 'Planned') + (p.caption ? ' — ' + p.caption : '');
         chip.addEventListener('click', (e) => {
           e.stopPropagation();
           openViewModal(ds, p.id);
         });
+        chip.draggable = true;
+        chip.addEventListener('dragstart', (e) => {
+          e.stopPropagation();
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', JSON.stringify({ id: p.id, fromDate: ds }));
+          chip.classList.add('dragging');
+        });
+        chip.addEventListener('dragend', () => chip.classList.remove('dragging'));
         chipsWrap.appendChild(chip);
       });
       cell.appendChild(chipsWrap);
 
       cell.addEventListener('click', () => openAddModal(ds));
+
+      cell.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        cell.classList.add('drag-over');
+      });
+      cell.addEventListener('dragleave', () => cell.classList.remove('drag-over'));
+      cell.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        cell.classList.remove('drag-over');
+        let payload;
+        try {
+          payload = JSON.parse(e.dataTransfer.getData('text/plain'));
+        } catch (err) {
+          return;
+        }
+        if (!payload || !payload.id || payload.fromDate === ds) return;
+        try {
+          await movePostDate(payload.id, ds);
+          await refreshData();
+        } catch (err) {
+          alert('Could not move this post — check your connection and try again.');
+        }
+      });
+
       weekRow.appendChild(cell);
     });
 
@@ -665,6 +798,9 @@
     const badge = document.getElementById('viewBadge');
     badge.textContent = (post.platform === 'Instagram' && post.igFormat) ? ('Instagram · ' + post.igFormat) : post.platform;
     badge.style.background = PLATFORM_COLORS[post.platform] || '#888';
+    const statusBadge = document.getElementById('viewStatusBadge');
+    statusBadge.textContent = post.status || 'Planned';
+    statusBadge.style.background = STATUS_COLORS[post.status] || '#888';
     document.getElementById('viewTime').textContent = post.time || '';
 
     const gallery = document.getElementById('viewGallery');
@@ -687,9 +823,11 @@
     if (!post) return;
     activeEditId = id;
     document.getElementById('postId').value = id;
+    document.getElementById('postDate').value = activeDateStr;
     document.getElementById('time').value = post.time || '09:00';
     document.getElementById('platform').value = post.platform || 'Instagram';
     document.getElementById('igFormat').value = post.igFormat || 'Post';
+    document.getElementById('status').value = post.status || 'Planned';
     document.getElementById('caption').value = post.caption || '';
     document.getElementById('hashtags').value = post.hashtags || '';
     formImages = postImages(post).map(im => ({ id: im.id, src: im.src }));
@@ -701,9 +839,11 @@
   function resetForm() {
     activeEditId = null;
     document.getElementById('postId').value = '';
+    document.getElementById('postDate').value = activeDateStr;
     document.getElementById('time').value = '09:00';
     document.getElementById('platform').value = 'Instagram';
     document.getElementById('igFormat').value = 'Post';
+    document.getElementById('status').value = 'Planned';
     document.getElementById('caption').value = '';
     document.getElementById('hashtags').value = '';
     document.getElementById('imageUrlInput').value = '';
@@ -801,14 +941,16 @@
       time: document.getElementById('time').value,
       platform: platform,
       igFormat: platform === 'Instagram' ? document.getElementById('igFormat').value : '',
+      status: document.getElementById('status').value,
       caption: document.getElementById('caption').value.trim(),
       hashtags: document.getElementById('hashtags').value.trim(),
       images: formImages.slice()
     };
+    const targetDate = document.getElementById('postDate').value || activeDateStr;
     const submitBtn = e.target.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
     try {
-      await savePost(activeDateStr, post);
+      await savePost(targetDate, post);
       await refreshData();
       closeModal();
     } catch (err) {
@@ -870,6 +1012,7 @@
     render();
   });
   document.getElementById('platformFilter').addEventListener('change', render);
+  document.getElementById('statusFilter').addEventListener('change', render);
 
   document.getElementById('exportBtn').addEventListener('click', () => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
