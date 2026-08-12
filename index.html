@@ -83,6 +83,21 @@
   }
   textarea { resize: vertical; }
 
+  .dropdown { position: relative; display: inline-block; }
+  .dropdown-menu {
+    position: absolute; top: 100%; right: 0; margin-top: 4px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: 0 4px 14px rgba(20,22,30,0.12);
+    display: none; flex-direction: column;
+    min-width: 150px; overflow: hidden; z-index: 30;
+  }
+  .dropdown-menu.open { display: flex; }
+  .dropdown-menu button {
+    border: none; border-radius: 0; text-align: left;
+    padding: 9px 12px;
+  }
+  .dropdown-menu button + button { border-top: 1px solid var(--border); }
+
   .stats {
     display: flex;
     gap: 16px;
@@ -333,7 +348,6 @@
   <div class="topbar">
     <div>
       <h1>2026 content calendar</h1>
-      <div class="sub">Click a scheduled post to view it, or click empty space on a day to schedule a new one</div>
     </div>
     <div class="controls">
       <select id="platformFilter">
@@ -353,8 +367,13 @@
       <a href="https://www.figma.com/design/lkclEKLdcYCmwhBkrDht4E/Admin---Marketing?node-id=912-2700&t=MDCW6AeKSpgdGTUx-1" target="_blank" rel="noopener" style="text-decoration:none;">
         <button type="button">Design file</button>
       </a>
-      <button id="exportBtn" class="desktop-only">Export JSON</button>
-      <button id="importBtn" class="desktop-only">Import JSON</button>
+      <div class="dropdown desktop-only" id="backupDropdown">
+        <button type="button" id="backupBtn">Backup &#9662;</button>
+        <div class="dropdown-menu" id="backupMenu">
+          <button type="button" id="exportBtn">Export JSON</button>
+          <button type="button" id="importBtn">Import JSON</button>
+        </div>
+      </div>
       <input type="file" id="importInput" accept="application/json">
     </div>
   </div>
@@ -366,16 +385,16 @@
     <button id="todayBtn">Today</button>
   </div>
 
-  <div class="stats">
-    <div>Posts this month: <b id="statMonth">0</b></div>
-    <div>Posts this year: <b id="statYear">0</b></div>
-  </div>
-
   <div class="grid">
     <div class="weekday-row">
       <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
     </div>
     <div id="calendarBody"></div>
+  </div>
+
+  <div class="stats" style="margin-top:14px; margin-bottom:0;">
+    <div>Posts this month: <b id="statMonth">0</b></div>
+    <div>Posts this year: <b id="statYear">0</b></div>
   </div>
 
 </div>
@@ -1085,7 +1104,16 @@
   document.getElementById('platformFilter').addEventListener('change', render);
   document.getElementById('statusFilter').addEventListener('change', render);
 
+  document.getElementById('backupBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('backupMenu').classList.toggle('open');
+  });
+  document.addEventListener('click', () => {
+    document.getElementById('backupMenu').classList.remove('open');
+  });
+
   document.getElementById('exportBtn').addEventListener('click', () => {
+    document.getElementById('backupMenu').classList.remove('open');
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1096,6 +1124,7 @@
   });
 
   document.getElementById('importBtn').addEventListener('click', () => {
+    document.getElementById('backupMenu').classList.remove('open');
     document.getElementById('importInput').click();
   });
   document.getElementById('importInput').addEventListener('change', (e) => {
