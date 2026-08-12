@@ -218,16 +218,6 @@
   .field input, .field select, .field textarea { width: 100%; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
-  .checkbox-row { display: flex; gap: 8px; flex-wrap: wrap; }
-  .checkbox-pill {
-    display: inline-flex; align-items: center; gap: 6px;
-    border: 1px solid var(--border-strong); border-radius: 999px;
-    padding: 6px 12px; font-size: 13px; cursor: pointer;
-    width: auto;
-  }
-  .checkbox-pill input { width: auto; }
-  .checkbox-pill:has(input:checked) { background: var(--accent-light); border-color: var(--accent); }
-
   .img-add-row { display: flex; gap: 6px; margin-bottom: 8px; }
   .img-add-row input[type="url"] { flex: 1; }
   .img-add-row button { flex-shrink: 0; white-space: nowrap; }
@@ -460,12 +450,12 @@
           </div>
         </div>
         <div class="field" id="igFormatField" style="display:none;">
-          <label>Instagram format</label>
-          <div class="checkbox-row">
-            <label class="checkbox-pill"><input type="checkbox" class="igFormatCheckbox" value="Post"> Post</label>
-            <label class="checkbox-pill"><input type="checkbox" class="igFormatCheckbox" value="Reel"> Reel</label>
-            <label class="checkbox-pill"><input type="checkbox" class="igFormatCheckbox" value="Story"> Story</label>
-          </div>
+          <label for="igFormat">Instagram format</label>
+          <select id="igFormat">
+            <option>Post</option>
+            <option>Reel</option>
+            <option>Story</option>
+          </select>
         </div>
         <div class="field">
           <label for="caption">Caption</label>
@@ -625,6 +615,33 @@
   async function refreshData() {
     data = await fetchAllData();
     render();
+  }
+
+  function removeLocalPost(id) {
+    Object.keys(data).forEach(ds => {
+      data[ds] = data[ds].filter(p => p.id !== id);
+      if (data[ds].length === 0) delete data[ds];
+    });
+  }
+
+  function upsertLocalPost(dateStr, post) {
+    removeLocalPost(post.id);
+    if (!data[dateStr]) data[dateStr] = [];
+    data[dateStr].push(post);
+    data[dateStr].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  }
+
+  function moveLocalPost(id, toDate) {
+    let moved = null;
+    Object.keys(data).forEach(ds => {
+      const idx = data[ds].findIndex(p => p.id === id);
+      if (idx >= 0) {
+        moved = data[ds][idx];
+        data[ds].splice(idx, 1);
+        if (data[ds].length === 0) delete data[ds];
+      }
+    });
+    if (moved) upsertLocalPost(toDate, moved);
   }
 
   let data = {};
@@ -792,7 +809,8 @@
         if (!payload || !payload.id || payload.fromDate === ds) return;
         try {
           await movePostDate(payload.id, ds);
-          await refreshData();
+          moveLocalPost(payload.id, ds);
+          render();
         } catch (err) {
           alert('Could not move this post — check your connection and try again.');
         }
@@ -883,7 +901,7 @@
     document.getElementById('postDate').value = activeDateStr;
     document.getElementById('time').value = post.time || '09:00';
     document.getElementById('platform').value = post.platform || 'Instagram';
-    setIgFormatCheckboxes(post.igFormat || '');
+    document.getElementById('igFormat').value = post.igFormat || 'Post';
     document.getElementById('status').value = post.status || 'Planned';
     document.getElementById('caption').value = post.caption || '';
     document.getElementById('hashtags').value = post.hashtags || '';
@@ -893,24 +911,13 @@
     updateIgFormatVisibility();
   }
 
-  function setIgFormatCheckboxes(igFormatStr) {
-    const selected = igFormatStr.split(',').map(s => s.trim()).filter(Boolean);
-    document.querySelectorAll('.igFormatCheckbox').forEach(cb => {
-      cb.checked = selected.includes(cb.value);
-    });
-  }
-
-  function getIgFormatCheckboxes() {
-    return Array.from(document.querySelectorAll('.igFormatCheckbox:checked')).map(cb => cb.value).join(', ');
-  }
-
   function resetForm() {
     activeEditId = null;
     document.getElementById('postId').value = '';
     document.getElementById('postDate').value = activeDateStr;
     document.getElementById('time').value = '09:00';
     document.getElementById('platform').value = 'Instagram';
-    setIgFormatCheckboxes('Post');
+    document.getElementById('igFormat').value = 'Post';
     document.getElementById('status').value = 'Planned';
     document.getElementById('caption').value = '';
     document.getElementById('hashtags').value = '';
@@ -1008,7 +1015,7 @@
       id: activeEditId || ('p' + Date.now() + Math.floor(Math.random() * 1000)),
       time: document.getElementById('time').value,
       platform: platform,
-      igFormat: platform === 'Instagram' ? getIgFormatCheckboxes() : '',
+      igFormat: platform === 'Instagram' ? document.getElementById('igFormat').value : '',
       status: document.getElementById('status').value,
       caption: document.getElementById('caption').value.trim(),
       hashtags: document.getElementById('hashtags').value.trim(),
@@ -1019,7 +1026,8 @@
     submitBtn.disabled = true;
     try {
       await savePost(targetDate, post);
-      await refreshData();
+      upsertLocalPost(targetDate, post);
+      render();
       closeModal();
     } catch (err) {
       alert('Could not save this post — check your connection and try again.');
@@ -1032,7 +1040,8 @@
     if (!activeEditId) return;
     try {
       await deletePostRemote(activeEditId);
-      await refreshData();
+      removeLocalPost(activeEditId);
+      render();
       closeModal();
     } catch (err) {
       alert('Could not delete this post — check your connection and try again.');
@@ -1060,7 +1069,7 @@
       const { error } = await sb.from(TABLE).update({ status: newStatus }).eq('id', currentViewPost.id);
       if (error) throw error;
       currentViewPost.status = newStatus;
-      await refreshData();
+      render();
     } catch (err) {
       alert('Could not update status — check your connection and try again.');
     }
@@ -1080,7 +1089,8 @@
     if (!activeEditId) return;
     try {
       await deletePostRemote(activeEditId);
-      await refreshData();
+      removeLocalPost(activeEditId);
+      render();
       closeViewModal();
     } catch (err) {
       alert('Could not delete this post — check your connection and try again.');
