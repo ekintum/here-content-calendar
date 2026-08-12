@@ -294,8 +294,17 @@
   }
   .view-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
   .view-meta .time { font-size: 13px; color: var(--text-secondary); }
-  .view-caption { font-size: 14px; line-height: 1.5; margin: 12px 0 8px; white-space: pre-wrap; }
+  .view-caption { font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
   .view-hashtags { font-size: 13px; color: var(--accent); word-break: break-word; }
+
+  .copy-block { margin: 14px 0; }
+  .copy-block-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .copy-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+  .copy-btn { padding: 3px 10px; font-size: 11px; }
+  .copy-btn.copied { background: var(--accent); border-color: var(--accent); color: #fff; }
 
   .chip[draggable="true"] { cursor: grab; }
   .chip.dragging { opacity: 0.4; }
@@ -398,8 +407,23 @@
 
     <div class="view-gallery" id="viewGallery"></div>
 
-    <div class="view-caption" id="viewCaption"></div>
-    <div class="view-hashtags" id="viewHashtags"></div>
+    <div class="copy-block">
+      <div class="copy-block-header">
+        <span class="copy-label">Caption</span>
+        <button type="button" class="copy-btn" id="copyCaptionBtn">Copy</button>
+      </div>
+      <div class="view-caption" id="viewCaption"></div>
+    </div>
+
+    <div class="copy-block">
+      <div class="copy-block-header">
+        <span class="copy-label">Hashtags</span>
+        <button type="button" class="copy-btn" id="copyHashtagsBtn">Copy</button>
+      </div>
+      <div class="view-hashtags" id="viewHashtags"></div>
+    </div>
+
+    <button type="button" id="copyBothBtn" style="width:100%;">Copy caption + hashtags</button>
 
     <div class="modal-actions">
       <button type="button" id="viewDeleteBtn">Delete</button>
@@ -600,6 +624,38 @@
   let activeDateStr = null;
   let activeEditId = null;
   let formImages = [];
+  let currentViewPost = null;
+
+  function copyToClipboard(text, btn) {
+    if (!text) return;
+    const showCopied = () => {
+      if (!btn) return;
+      const original = btn.textContent;
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = original;
+        btn.classList.remove('copied');
+      }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(showCopied).catch(() => fallbackCopy(text, showCopied));
+    } else {
+      fallbackCopy(text, showCopied);
+    }
+  }
+
+  function fallbackCopy(text, onDone) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand('copy'); onDone && onDone(); } catch (err) { /* no-op */ }
+    document.body.removeChild(ta);
+  }
 
   function postImages(p) {
     if (p.images && p.images.length) return p.images;
@@ -793,6 +849,7 @@
     if (!post) return;
     activeDateStr = ds;
     activeEditId = id;
+    currentViewPost = post;
 
     document.getElementById('viewDate').textContent = dateLabel(ds);
     const badge = document.getElementById('viewBadge');
@@ -974,6 +1031,18 @@
   document.getElementById('cancelBtn').addEventListener('click', closeModal);
   document.getElementById('overlay').addEventListener('click', (e) => {
     if (e.target.id === 'overlay') closeModal();
+  });
+
+  document.getElementById('copyCaptionBtn').addEventListener('click', (e) => {
+    if (currentViewPost) copyToClipboard(currentViewPost.caption || '', e.currentTarget);
+  });
+  document.getElementById('copyHashtagsBtn').addEventListener('click', (e) => {
+    if (currentViewPost) copyToClipboard(currentViewPost.hashtags || '', e.currentTarget);
+  });
+  document.getElementById('copyBothBtn').addEventListener('click', (e) => {
+    if (!currentViewPost) return;
+    const combined = [currentViewPost.caption, currentViewPost.hashtags].filter(Boolean).join('\n\n');
+    copyToClipboard(combined, e.currentTarget);
   });
 
   document.getElementById('viewCloseBtn').addEventListener('click', closeViewModal);
