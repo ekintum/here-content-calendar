@@ -83,38 +83,14 @@
   }
   textarea { resize: vertical; }
 
-  .month-label {
-    font-size: 16px;
-    font-weight: 600;
-    min-width: 150px;
-    text-align: center;
-  }
-
   .stats {
     display: flex;
     gap: 16px;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
     font-size: 13px;
     color: var(--text-secondary);
   }
   .stats b { color: var(--text); }
-
-  .legend {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 16px;
-  }
-  .legend span {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 12px;
-    color: var(--text-secondary);
-  }
-  .legend .dot {
-    width: 9px; height: 9px; border-radius: 50%;
-  }
 
   .grid {
     background: var(--card);
@@ -227,6 +203,16 @@
   .field input, .field select, .field textarea { width: 100%; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
+  .checkbox-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .checkbox-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--border-strong); border-radius: 999px;
+    padding: 6px 12px; font-size: 13px; cursor: pointer;
+    width: auto;
+  }
+  .checkbox-pill input { width: auto; }
+  .checkbox-pill:has(input:checked) { background: var(--accent-light); border-color: var(--accent); }
+
   .img-add-row { display: flex; gap: 6px; margin-bottom: 8px; }
   .img-add-row input[type="url"] { flex: 1; }
   .img-add-row button { flex-shrink: 0; white-space: nowrap; }
@@ -283,6 +269,17 @@
     padding: 3px 9px; border-radius: 999px;
     color: #fff;
   }
+  .status-select {
+    font-size: 12px; font-weight: 600;
+    padding: 3px 22px 3px 9px; border-radius: 999px;
+    color: #fff; border: none;
+    -webkit-appearance: none; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='white' d='M2 4l4 4 4-4z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 10px;
+    cursor: pointer;
+  }
   .view-gallery {
     display: flex; gap: 6px; overflow-x: auto;
     margin: 12px 0;
@@ -294,17 +291,10 @@
   }
   .view-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
   .view-meta .time { font-size: 13px; color: var(--text-secondary); }
-  .view-caption { font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+  .view-caption { font-size: 14px; line-height: 1.5; white-space: pre-wrap; margin: 12px 0 8px; }
   .view-hashtags { font-size: 13px; color: var(--accent); word-break: break-word; }
 
-  .copy-block { margin: 14px 0; }
-  .copy-block-header {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 4px;
-  }
-  .copy-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
-  .copy-btn { padding: 3px 10px; font-size: 11px; }
-  .copy-btn.copied { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #copyBothBtn.copied { background: var(--accent); border-color: var(--accent); color: #fff; }
 
   .chip[draggable="true"] { cursor: grab; }
   .chip.dragging { opacity: 0.4; }
@@ -317,10 +307,8 @@
     .topbar .sub { font-size: 12px; }
     .controls { width: 100%; }
     .controls select, .controls button { font-size: 12px; padding: 6px 9px; }
-    .month-label { min-width: 0; font-size: 14px; flex: 1; }
     .stats { flex-wrap: wrap; gap: 8px; font-size: 12px; }
-    .legend { gap: 6px; font-size: 11px; }
-    .legend span { font-size: 11px; }
+    .desktop-only { display: none; }
 
     .weekday-row div { padding: 6px 0; font-size: 10px; }
     .day { height: 78px; padding: 4px; gap: 2px; }
@@ -358,23 +346,23 @@
         <option value="">All statuses</option>
         <option value="Planned">Planned</option>
         <option value="Design in progress">Design in progress</option>
+        <option value="Ready">Ready</option>
         <option value="Scheduled">Scheduled</option>
         <option value="Published">Published</option>
       </select>
       <a href="https://www.figma.com/design/lkclEKLdcYCmwhBkrDht4E/Admin---Marketing?node-id=912-2700&t=MDCW6AeKSpgdGTUx-1" target="_blank" rel="noopener" style="text-decoration:none;">
         <button type="button">Design file</button>
       </a>
-      <button id="exportBtn">Export JSON</button>
-      <button id="importBtn">Import JSON</button>
+      <button id="exportBtn" class="desktop-only">Export JSON</button>
+      <button id="importBtn" class="desktop-only">Import JSON</button>
       <input type="file" id="importInput" accept="application/json">
     </div>
   </div>
 
   <div class="controls" style="margin-bottom:14px;">
     <button class="icon" id="prevBtn">&larr;</button>
-    <div class="month-label" id="monthLabel"></div>
-    <button class="icon" id="nextBtn">&rarr;</button>
     <select id="monthJump"></select>
+    <button class="icon" id="nextBtn">&rarr;</button>
     <button id="todayBtn">Today</button>
   </div>
 
@@ -382,8 +370,6 @@
     <div>Posts this month: <b id="statMonth">0</b></div>
     <div>Posts this year: <b id="statYear">0</b></div>
   </div>
-
-  <div class="legend" id="legend"></div>
 
   <div class="grid">
     <div class="weekday-row">
@@ -401,29 +387,22 @@
 
     <div class="view-meta">
       <span class="badge" id="viewBadge"></span>
-      <span class="badge" id="viewStatusBadge"></span>
+      <select id="viewStatusSelect" class="status-select">
+        <option>Planned</option>
+        <option>Design in progress</option>
+        <option>Ready</option>
+        <option>Scheduled</option>
+        <option>Published</option>
+      </select>
       <span class="time" id="viewTime"></span>
     </div>
 
     <div class="view-gallery" id="viewGallery"></div>
 
-    <div class="copy-block">
-      <div class="copy-block-header">
-        <span class="copy-label">Caption</span>
-        <button type="button" class="copy-btn" id="copyCaptionBtn">Copy</button>
-      </div>
-      <div class="view-caption" id="viewCaption"></div>
-    </div>
+    <div class="view-caption" id="viewCaption"></div>
+    <div class="view-hashtags" id="viewHashtags"></div>
 
-    <div class="copy-block">
-      <div class="copy-block-header">
-        <span class="copy-label">Hashtags</span>
-        <button type="button" class="copy-btn" id="copyHashtagsBtn">Copy</button>
-      </div>
-      <div class="view-hashtags" id="viewHashtags"></div>
-    </div>
-
-    <button type="button" id="copyBothBtn" style="width:100%;">Copy caption + hashtags</button>
+    <button type="button" id="copyBothBtn" style="width:100%; margin-top:10px;">Copy caption + hashtags</button>
 
     <div class="modal-actions">
       <button type="button" id="viewDeleteBtn">Delete</button>
@@ -441,65 +420,76 @@
 
     <form id="postForm">
       <input type="hidden" id="postId">
-      <div class="field">
-        <label for="postDate">Date</label>
-        <input type="date" id="postDate" min="2026-01-01" max="2026-12-31">
-      </div>
-      <div class="row2">
+
+      <div id="formStep1">
         <div class="field">
-          <label for="time">Time</label>
-          <input type="time" id="time" value="09:00">
+          <label for="postDate">Date</label>
+          <input type="date" id="postDate" min="2026-01-01" max="2026-12-31">
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label for="time">Time</label>
+            <input type="time" id="time" value="09:00">
+          </div>
+          <div class="field">
+            <label for="platform">Platform</label>
+            <select id="platform">
+              <option>Instagram</option>
+              <option>TikTok</option>
+              <option>Email</option>
+            </select>
+          </div>
+        </div>
+        <div class="field" id="igFormatField" style="display:none;">
+          <label>Instagram format</label>
+          <div class="checkbox-row">
+            <label class="checkbox-pill"><input type="checkbox" class="igFormatCheckbox" value="Post"> Post</label>
+            <label class="checkbox-pill"><input type="checkbox" class="igFormatCheckbox" value="Reel"> Reel</label>
+            <label class="checkbox-pill"><input type="checkbox" class="igFormatCheckbox" value="Story"> Story</label>
+          </div>
         </div>
         <div class="field">
-          <label for="platform">Platform</label>
-          <select id="platform">
-            <option>Instagram</option>
-            <option>TikTok</option>
-            <option>Email</option>
+          <label for="caption">Caption</label>
+          <textarea id="caption" rows="4" placeholder="Write the post copy..."></textarea>
+        </div>
+        <div class="field">
+          <label for="hashtags">Hashtags</label>
+          <input type="text" id="hashtags" placeholder="#example #hashtags">
+        </div>
+        <div class="field">
+          <label>Images</label>
+          <div class="img-add-row">
+            <input type="url" id="imageUrlInput" placeholder="Paste an image URL...">
+            <button type="button" id="addImageUrlBtn">Add link</button>
+            <button type="button" id="uploadImageBtn">Upload</button>
+            <input type="file" id="fileInput" accept="image/*" multiple>
+          </div>
+          <div class="img-hint">Add multiple images to post a carousel. First image is the cover. Uploaded photos are stored inside this file, so keep an eye on file size for large photo libraries.</div>
+          <div class="img-thumbs" id="imgThumbs"></div>
+        </div>
+      </div>
+
+      <div id="formStep2" style="display:none;">
+        <div class="field">
+          <label for="status">Status</label>
+          <div class="img-hint" style="margin-top:-2px;">Where does this post stand right now?</div>
+          <select id="status">
+            <option>Planned</option>
+            <option>Design in progress</option>
+            <option>Ready</option>
+            <option>Scheduled</option>
+            <option>Published</option>
           </select>
         </div>
       </div>
-      <div class="field">
-        <label for="status">Status</label>
-        <select id="status">
-          <option>Planned</option>
-          <option>Design in progress</option>
-          <option>Scheduled</option>
-          <option>Published</option>
-        </select>
-      </div>
-      <div class="field" id="igFormatField" style="display:none;">
-        <label for="igFormat">Instagram format</label>
-        <select id="igFormat">
-          <option>Post</option>
-          <option>Reel</option>
-          <option>Story</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="caption">Caption</label>
-        <textarea id="caption" rows="4" placeholder="Write the post copy..."></textarea>
-      </div>
-      <div class="field">
-        <label for="hashtags">Hashtags</label>
-        <input type="text" id="hashtags" placeholder="#example #hashtags">
-      </div>
-      <div class="field">
-        <label>Images</label>
-        <div class="img-add-row">
-          <input type="url" id="imageUrlInput" placeholder="Paste an image URL...">
-          <button type="button" id="addImageUrlBtn">Add link</button>
-          <button type="button" id="uploadImageBtn">Upload</button>
-          <input type="file" id="fileInput" accept="image/*" multiple>
-        </div>
-        <div class="img-hint">Add multiple images to post a carousel. First image is the cover. Uploaded photos are stored inside this file, so keep an eye on file size for large photo libraries.</div>
-        <div class="img-thumbs" id="imgThumbs"></div>
-      </div>
+
       <div class="modal-actions">
         <button type="button" id="deleteBtn" style="display:none;">Delete</button>
         <div class="spacer"></div>
         <button type="button" id="cancelBtn">Cancel</button>
-        <button type="submit" class="primary">Save post</button>
+        <button type="button" id="backStepBtn" style="display:none;">Back</button>
+        <button type="button" id="nextStepBtn">Next</button>
+        <button type="submit" class="primary" id="saveBtn" style="display:none;">Save post</button>
       </div>
     </form>
   </div>
@@ -520,6 +510,7 @@
   const STATUS_COLORS = {
     'Planned': '#888780',
     'Design in progress': '#ba7517',
+    'Ready': '#7f77dd',
     'Scheduled': '#378add',
     'Published': '#3b6d11'
   };
@@ -666,25 +657,6 @@
   function pad2(n) { return n < 10 ? '0' + n : '' + n; }
   function dateStr(y, m, d) { return y + '-' + pad2(m + 1) + '-' + pad2(d); }
 
-  function buildLegend() {
-    const el = document.getElementById('legend');
-    el.innerHTML = '';
-    Object.keys(PLATFORM_COLORS).forEach(p => {
-      const span = document.createElement('span');
-      span.innerHTML = '<span class="dot" style="background:' + PLATFORM_COLORS[p] + '"></span>' + p;
-      el.appendChild(span);
-    });
-    const sep = document.createElement('span');
-    sep.textContent = '|';
-    sep.style.color = 'var(--border-strong)';
-    el.appendChild(sep);
-    Object.keys(STATUS_COLORS).forEach(s => {
-      const span = document.createElement('span');
-      span.innerHTML = '<span class="dot" style="background:' + STATUS_COLORS[s] + '"></span>' + s;
-      el.appendChild(span);
-    });
-  }
-
   function buildMonthJump() {
     const sel = document.getElementById('monthJump');
     sel.innerHTML = '';
@@ -704,7 +676,6 @@
   function renderCalendar() {
     const body = document.getElementById('calendarBody');
     body.innerHTML = '';
-    document.getElementById('monthLabel').textContent = MONTHS[viewMonth] + ' ' + viewYear;
     document.getElementById('monthJump').value = viewMonth;
 
     const firstDay = new Date(viewYear, viewMonth, 1).getDay();
@@ -833,6 +804,7 @@
     document.getElementById('formTitle').textContent = 'Schedule a post';
     document.getElementById('modalDate').textContent = dateLabel(ds);
     resetForm();
+    showStep(1);
     document.getElementById('overlay').classList.add('open');
   }
 
@@ -841,7 +813,16 @@
     document.getElementById('formTitle').textContent = 'Edit post';
     document.getElementById('modalDate').textContent = dateLabel(ds);
     loadPostIntoForm(id);
+    showStep(1);
     document.getElementById('overlay').classList.add('open');
+  }
+
+  function showStep(step) {
+    document.getElementById('formStep1').style.display = step === 1 ? 'block' : 'none';
+    document.getElementById('formStep2').style.display = step === 2 ? 'block' : 'none';
+    document.getElementById('backStepBtn').style.display = step === 2 ? 'inline-block' : 'none';
+    document.getElementById('nextStepBtn').style.display = step === 1 ? 'inline-block' : 'none';
+    document.getElementById('saveBtn').style.display = step === 2 ? 'inline-block' : 'none';
   }
 
   function openViewModal(ds, id) {
@@ -855,9 +836,9 @@
     const badge = document.getElementById('viewBadge');
     badge.textContent = (post.platform === 'Instagram' && post.igFormat) ? ('Instagram · ' + post.igFormat) : post.platform;
     badge.style.background = PLATFORM_COLORS[post.platform] || '#888';
-    const statusBadge = document.getElementById('viewStatusBadge');
-    statusBadge.textContent = post.status || 'Planned';
-    statusBadge.style.background = STATUS_COLORS[post.status] || '#888';
+    const statusSelect = document.getElementById('viewStatusSelect');
+    statusSelect.value = post.status || 'Planned';
+    statusSelect.style.backgroundColor = STATUS_COLORS[post.status] || '#888';
     document.getElementById('viewTime').textContent = post.time || '';
 
     const gallery = document.getElementById('viewGallery');
@@ -883,7 +864,7 @@
     document.getElementById('postDate').value = activeDateStr;
     document.getElementById('time').value = post.time || '09:00';
     document.getElementById('platform').value = post.platform || 'Instagram';
-    document.getElementById('igFormat').value = post.igFormat || 'Post';
+    setIgFormatCheckboxes(post.igFormat || '');
     document.getElementById('status').value = post.status || 'Planned';
     document.getElementById('caption').value = post.caption || '';
     document.getElementById('hashtags').value = post.hashtags || '';
@@ -893,13 +874,24 @@
     updateIgFormatVisibility();
   }
 
+  function setIgFormatCheckboxes(igFormatStr) {
+    const selected = igFormatStr.split(',').map(s => s.trim()).filter(Boolean);
+    document.querySelectorAll('.igFormatCheckbox').forEach(cb => {
+      cb.checked = selected.includes(cb.value);
+    });
+  }
+
+  function getIgFormatCheckboxes() {
+    return Array.from(document.querySelectorAll('.igFormatCheckbox:checked')).map(cb => cb.value).join(', ');
+  }
+
   function resetForm() {
     activeEditId = null;
     document.getElementById('postId').value = '';
     document.getElementById('postDate').value = activeDateStr;
     document.getElementById('time').value = '09:00';
     document.getElementById('platform').value = 'Instagram';
-    document.getElementById('igFormat').value = 'Post';
+    setIgFormatCheckboxes('Post');
     document.getElementById('status').value = 'Planned';
     document.getElementById('caption').value = '';
     document.getElementById('hashtags').value = '';
@@ -997,7 +989,7 @@
       id: activeEditId || ('p' + Date.now() + Math.floor(Math.random() * 1000)),
       time: document.getElementById('time').value,
       platform: platform,
-      igFormat: platform === 'Instagram' ? document.getElementById('igFormat').value : '',
+      igFormat: platform === 'Instagram' ? getIgFormatCheckboxes() : '',
       status: document.getElementById('status').value,
       caption: document.getElementById('caption').value.trim(),
       hashtags: document.getElementById('hashtags').value.trim(),
@@ -1032,17 +1024,27 @@
   document.getElementById('overlay').addEventListener('click', (e) => {
     if (e.target.id === 'overlay') closeModal();
   });
+  document.getElementById('nextStepBtn').addEventListener('click', () => showStep(2));
+  document.getElementById('backStepBtn').addEventListener('click', () => showStep(1));
 
-  document.getElementById('copyCaptionBtn').addEventListener('click', (e) => {
-    if (currentViewPost) copyToClipboard(currentViewPost.caption || '', e.currentTarget);
-  });
-  document.getElementById('copyHashtagsBtn').addEventListener('click', (e) => {
-    if (currentViewPost) copyToClipboard(currentViewPost.hashtags || '', e.currentTarget);
-  });
   document.getElementById('copyBothBtn').addEventListener('click', (e) => {
     if (!currentViewPost) return;
     const combined = [currentViewPost.caption, currentViewPost.hashtags].filter(Boolean).join('\n\n');
     copyToClipboard(combined, e.currentTarget);
+  });
+
+  document.getElementById('viewStatusSelect').addEventListener('change', async (e) => {
+    if (!currentViewPost) return;
+    const newStatus = e.target.value;
+    e.target.style.backgroundColor = STATUS_COLORS[newStatus] || '#888';
+    try {
+      const { error } = await sb.from(TABLE).update({ status: newStatus }).eq('id', currentViewPost.id);
+      if (error) throw error;
+      currentViewPost.status = newStatus;
+      await refreshData();
+    } catch (err) {
+      alert('Could not update status — check your connection and try again.');
+    }
   });
 
   document.getElementById('viewCloseBtn').addEventListener('click', closeViewModal);
@@ -1121,7 +1123,6 @@
   });
 
   async function initApp() {
-    buildLegend();
     buildMonthJump();
     try {
       await seedExampleIfEmpty();
