@@ -179,11 +179,11 @@
     white-space: nowrap;
     min-width: 0;
   }
-  .chip-status-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
+  .chip-status-icon {
     flex-shrink: 0;
-    border: 1px solid rgba(255,255,255,0.7);
+    font-size: 10px;
+    line-height: 1;
+    font-style: normal;
   }
   .add-hint {
     font-size: 11px;
@@ -320,7 +320,7 @@
     .day-num { font-size: 10px; }
     .day.today .day-num { width: 16px; height: 16px; font-size: 10px; }
     .chip { font-size: 9px; padding: 2px 4px; gap: 3px; }
-    .chip-status-dot { width: 5px; height: 5px; }
+    .chip-status-icon { font-size: 9px; }
 
     .overlay { padding: 0; align-items: flex-end; }
     .modal { max-width: 100%; max-height: 92vh; border-radius: 16px 16px 0 0; padding: 16px; }
@@ -430,75 +430,67 @@
     <form id="postForm">
       <input type="hidden" id="postId">
 
-      <div id="formStep1">
+      <div class="field">
+        <label for="postDate">Date</label>
+        <input type="date" id="postDate" min="2026-01-01" max="2026-12-31">
+      </div>
+      <div class="row2">
         <div class="field">
-          <label for="postDate">Date</label>
-          <input type="date" id="postDate" min="2026-01-01" max="2026-12-31">
+          <label for="time">Time</label>
+          <input type="time" id="time" value="09:00">
         </div>
-        <div class="row2">
-          <div class="field">
-            <label for="time">Time</label>
-            <input type="time" id="time" value="09:00">
-          </div>
-          <div class="field">
-            <label for="platform">Platform</label>
-            <select id="platform">
-              <option>Instagram</option>
-              <option>TikTok</option>
-              <option>Email</option>
-            </select>
-          </div>
-        </div>
-        <div class="field" id="igFormatField" style="display:none;">
-          <label for="igFormat">Instagram format</label>
-          <select id="igFormat">
-            <option>Post</option>
-            <option>Reel</option>
-            <option>Story</option>
+        <div class="field">
+          <label for="platform">Platform</label>
+          <select id="platform">
+            <option>Instagram</option>
+            <option>TikTok</option>
+            <option>Email</option>
           </select>
-        </div>
-        <div class="field">
-          <label for="caption">Caption</label>
-          <textarea id="caption" rows="4" placeholder="Write the post copy..."></textarea>
-        </div>
-        <div class="field">
-          <label for="hashtags">Hashtags</label>
-          <input type="text" id="hashtags" placeholder="#example #hashtags">
-        </div>
-        <div class="field">
-          <label>Images</label>
-          <div class="img-add-row">
-            <input type="url" id="imageUrlInput" placeholder="Paste an image URL...">
-            <button type="button" id="addImageUrlBtn">Add link</button>
-            <button type="button" id="uploadImageBtn">Upload</button>
-            <input type="file" id="fileInput" accept="image/*" multiple>
-          </div>
-          <div class="img-hint">Add multiple images to post a carousel. First image is the cover. Uploaded photos are stored inside this file, so keep an eye on file size for large photo libraries.</div>
-          <div class="img-thumbs" id="imgThumbs"></div>
         </div>
       </div>
-
-      <div id="formStep2" style="display:none;">
-        <div class="field">
-          <label for="status">Status</label>
-          <div class="img-hint" style="margin-top:-2px;">Where does this post stand right now?</div>
-          <select id="status">
-            <option>Planned</option>
-            <option>Design in progress</option>
-            <option>Ready</option>
-            <option>Scheduled</option>
-            <option>Published</option>
-          </select>
+      <div class="field" id="igFormatField" style="display:none;">
+        <label for="igFormat">Instagram format</label>
+        <select id="igFormat">
+          <option>Post</option>
+          <option>Reel</option>
+          <option>Story</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="status">Status</label>
+        <select id="status">
+          <option>Planned</option>
+          <option>Design in progress</option>
+          <option>Ready</option>
+          <option>Scheduled</option>
+          <option>Published</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="caption">Caption</label>
+        <textarea id="caption" rows="4" placeholder="Write the post copy..."></textarea>
+      </div>
+      <div class="field">
+        <label for="hashtags">Hashtags</label>
+        <input type="text" id="hashtags" placeholder="#example #hashtags">
+      </div>
+      <div class="field">
+        <label>Images</label>
+        <div class="img-add-row">
+          <input type="url" id="imageUrlInput" placeholder="Paste an image URL...">
+          <button type="button" id="addImageUrlBtn">Add link</button>
+          <button type="button" id="uploadImageBtn">Upload</button>
+          <input type="file" id="fileInput" accept="image/*" multiple>
         </div>
+        <div class="img-hint">Add multiple images to post a carousel. First image is the cover. Uploaded photos are stored inside this file, so keep an eye on file size for large photo libraries.</div>
+        <div class="img-thumbs" id="imgThumbs"></div>
       </div>
 
       <div class="modal-actions">
         <button type="button" id="deleteBtn" style="display:none;">Delete</button>
         <div class="spacer"></div>
         <button type="button" id="cancelBtn">Cancel</button>
-        <button type="button" id="backStepBtn" style="display:none;">Back</button>
-        <button type="button" id="nextStepBtn">Next</button>
-        <button type="submit" class="primary" id="saveBtn" style="display:none;">Save post</button>
+        <button type="submit" class="primary" id="saveBtn">Save post</button>
       </div>
     </form>
   </div>
@@ -516,6 +508,11 @@
     TikTok: '#2c2c2a',
     Email: '#185fa5'
   };
+  const IG_FORMAT_COLORS = {
+    Post: '#d4527e',
+    Reel: '#c2410c',
+    Story: '#0f9e75'
+  };
   const STATUS_COLORS = {
     'Planned': '#888780',
     'Design in progress': '#ba7517',
@@ -523,6 +520,20 @@
     'Scheduled': '#378add',
     'Published': '#3b6d11'
   };
+  const STATUS_ICONS = {
+    'Planned': { char: '\u{1F914}', color: null },
+    'Design in progress': { char: '✏️', color: null },
+    'Ready': { char: '✓', color: '#9299ab' },
+    'Scheduled': { char: '\u{1F550}', color: null },
+    'Published': { char: '✅', color: null }
+  };
+
+  function getChipColor(post) {
+    if (post.platform === 'Instagram') {
+      return IG_FORMAT_COLORS[post.igFormat] || PLATFORM_COLORS.Instagram;
+    }
+    return PLATFORM_COLORS[post.platform] || '#888';
+  }
 
   const SUPABASE_URL = 'https://ybjtufzyeyxtfyurisho.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlianR1Znp5ZXl4dGZ5dXJpc2hvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0NzUxNjUsImV4cCI6MjEwMjA1MTE2NX0.VkoZ7bl5cKdpe_QgRr-390Wj0RJ1N4cchwzO1EN3fWQ';
@@ -760,17 +771,19 @@
         monthCount += 1;
         const chip = document.createElement('div');
         chip.className = 'chip';
-        chip.style.background = PLATFORM_COLORS[p.platform] || '#888';
+        chip.style.background = getChipColor(p);
         const platformLabel = (p.platform === 'Instagram' && p.igFormat) ? ('IG ' + p.igFormat) : p.platform;
         const imgCount = postImages(p).length;
         const imgLabel = imgCount > 1 ? (' · ' + imgCount + ' photos') : '';
-        const dot = document.createElement('span');
-        dot.className = 'chip-status-dot';
-        dot.style.background = STATUS_COLORS[p.status] || '#888';
+        const statusIcon = STATUS_ICONS[p.status] || STATUS_ICONS['Planned'];
+        const icon = document.createElement('span');
+        icon.className = 'chip-status-icon';
+        icon.textContent = statusIcon.char;
+        if (statusIcon.color) icon.style.color = statusIcon.color;
         const label = document.createElement('span');
         label.className = 'chip-label';
         label.textContent = (p.time ? p.time + ' · ' : '') + platformLabel + imgLabel + (p.caption ? ' · ' + p.caption.slice(0, 16) : '');
-        chip.appendChild(dot);
+        chip.appendChild(icon);
         chip.appendChild(label);
         chip.title = (p.status || 'Planned') + (p.caption ? ' — ' + p.caption : '');
         chip.addEventListener('click', (e) => {
@@ -841,7 +854,6 @@
     document.getElementById('formTitle').textContent = 'Schedule a post';
     document.getElementById('modalDate').textContent = dateLabel(ds);
     resetForm();
-    showStep(1);
     document.getElementById('overlay').classList.add('open');
   }
 
@@ -850,16 +862,7 @@
     document.getElementById('formTitle').textContent = 'Edit post';
     document.getElementById('modalDate').textContent = dateLabel(ds);
     loadPostIntoForm(id);
-    showStep(1);
     document.getElementById('overlay').classList.add('open');
-  }
-
-  function showStep(step) {
-    document.getElementById('formStep1').style.display = step === 1 ? 'block' : 'none';
-    document.getElementById('formStep2').style.display = step === 2 ? 'block' : 'none';
-    document.getElementById('backStepBtn').style.display = step === 2 ? 'inline-block' : 'none';
-    document.getElementById('nextStepBtn').style.display = step === 1 ? 'inline-block' : 'none';
-    document.getElementById('saveBtn').style.display = step === 2 ? 'inline-block' : 'none';
   }
 
   function openViewModal(ds, id) {
@@ -1086,8 +1089,6 @@
   document.getElementById('overlay').addEventListener('click', (e) => {
     if (e.target.id === 'overlay') closeModal();
   });
-  document.getElementById('nextStepBtn').addEventListener('click', () => showStep(2));
-  document.getElementById('backStepBtn').addEventListener('click', () => showStep(1));
 
   document.getElementById('copyBothBtn').addEventListener('click', (e) => {
     if (!currentViewPost) return;
