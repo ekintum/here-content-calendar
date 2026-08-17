@@ -4,8 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>2026 Content Calendar</title>
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
-
+<link rel="icon" type="image/png" href="favicon.png">
 <style>
   :root {
     --bg: #f5f6f8;
@@ -59,7 +58,7 @@
   button {
     font-family: var(--font);
     font-size: 13px;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border);
     background: var(--card);
     color: var(--text);
     padding: 7px 12px;
@@ -68,12 +67,14 @@
   }
   button:hover { background: #f0f1f4; }
   button.primary {
-    background: var(--accent);
-    border-color: var(--accent);
+    background: #3f6fe0;
+    border-color: #2e5fd9;
     color: #fff;
   }
-  button.primary:hover { background: #244cb0; }
+  button.primary:hover { background: #2e5fd9; }
   button.icon { padding: 7px 10px; font-weight: 600; }
+  button.btn-gray { background: #F5F5F5; border-color: #dcdcdc; color: #1f2430; }
+  button.btn-gray:hover { background: #e8e8e8; border-color: #d0d0d0; }
   select, input, textarea {
     font-family: var(--font);
     font-size: 13px;
@@ -172,7 +173,6 @@
     font-size: 11px;
     padding: 3px 6px;
     border-radius: 5px;
-    color: #fff;
     flex-shrink: 0;
   }
   .chip .chip-label {
@@ -357,7 +357,10 @@
         <option value="Published">Published</option>
       </select>
       <a href="https://www.figma.com/design/lkclEKLdcYCmwhBkrDht4E/Admin---Marketing?node-id=912-2700&t=MDCW6AeKSpgdGTUx-1" target="_blank" rel="noopener" style="text-decoration:none;">
-        <button type="button">Design file</button>
+        <button type="button" class="btn-gray">Design file</button>
+      </a>
+      <a href="https://www.instagram.com/scheduled_content/" target="_blank" rel="noopener" style="text-decoration:none;">
+        <button type="button" class="btn-gray">Instagram</button>
       </a>
       <div class="dropdown desktop-only" id="backupDropdown">
         <button type="button" id="backupBtn">Backup &#9662;</button>
@@ -374,12 +377,12 @@
     <button class="icon" id="prevBtn">&larr;</button>
     <select id="monthJump"></select>
     <button class="icon" id="nextBtn">&rarr;</button>
-    <button id="todayBtn">Today</button>
+    <button id="todayBtn" class="btn-gray">Today</button>
   </div>
 
   <div class="grid">
     <div class="weekday-row">
-      <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+      <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
     </div>
     <div id="calendarBody"></div>
   </div>
@@ -435,6 +438,15 @@
       <div class="field">
         <label for="postDate">Date</label>
         <input type="date" id="postDate" min="2026-01-01" max="2026-12-31">
+      </div>
+      <div class="field" id="repeatField">
+        <label for="repeat">Repeats</label>
+        <select id="repeat">
+          <option value="none">Does not repeat</option>
+          <option value="weekly">Weekly</option>
+          <option value="biweekly">Every other week</option>
+          <option value="monthly">Monthly</option>
+        </select>
       </div>
       <div class="row2">
         <div class="field">
@@ -502,22 +514,18 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
+  const LAST_UPDATED = 'Aug 17, 2026 · 1:20 PM PT';
   const YEAR = 2026;
-  const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const WEEKDAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const PLATFORM_COLORS = {
     Instagram: '#d4527e',
     TikTok: '#2c2c2a',
     Email: '#185fa5'
   };
-  const IG_FORMAT_COLORS = {
-    Post: '#d4527e',
-    Reel: '#c2410c',
-    Story: '#0f9e75'
-  };
   const STATUS_COLORS = {
     'Planned': '#888780',
-    'Design in progress': '#ba7517',
+    'Design in progress': '#1169EE',
     'Ready': '#7f77dd',
     'Scheduled': '#378add',
     'Published': '#3b6d11'
@@ -525,16 +533,26 @@
   const STATUS_ICONS = {
     'Planned': { char: '\u{1F914}', color: null },
     'Design in progress': { char: '✏️', color: null },
-    'Ready': { char: '✓', color: '#9299ab' },
+    'Ready': { char: '✓', color: '#62677a' },
     'Scheduled': { char: '\u{1F550}', color: null },
     'Published': { char: '✅', color: null }
   };
 
-  function getChipColor(post) {
-    if (post.platform === 'Instagram') {
-      return IG_FORMAT_COLORS[post.igFormat] || PLATFORM_COLORS.Instagram;
-    }
-    return PLATFORM_COLORS[post.platform] || '#888';
+  const CHIP_DEFAULT_BG = '#E5E5E5';
+  const CHIP_STATUS_BG = {
+    'Published': '#DAFF70',
+    'Design in progress': '#1169EE'
+  };
+  const CHIP_STATUS_TEXT = {
+    'Design in progress': '#ffffff'
+  };
+
+  function getChipBg(status) {
+    return CHIP_STATUS_BG[status] || CHIP_DEFAULT_BG;
+  }
+
+  function getChipTextColor(status) {
+    return CHIP_STATUS_TEXT[status] || '#1f2430';
   }
 
   const SUPABASE_URL = 'https://ybjtufzyeyxtfyurisho.supabase.co';
@@ -706,6 +724,42 @@
   function pad2(n) { return n < 10 ? '0' + n : '' + n; }
   function dateStr(y, m, d) { return y + '-' + pad2(m + 1) + '-' + pad2(d); }
 
+  function addDays(ds, days) {
+    const [y, m, d] = ds.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + days);
+    return dt.toISOString().slice(0, 10);
+  }
+
+  function addMonthsClamped(ds, months) {
+    const [y, m, d] = ds.split('-').map(Number);
+    let idx = (m - 1) + months;
+    const targetYear = y + Math.floor(idx / 12);
+    const targetMonth = ((idx % 12) + 12) % 12;
+    const daysInTargetMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+    const clampedDay = Math.min(d, daysInTargetMonth);
+    return new Date(Date.UTC(targetYear, targetMonth, clampedDay)).toISOString().slice(0, 10);
+  }
+
+  function generateRecurrenceDates(startDs, repeat) {
+    const endBound = YEAR + '-12-31';
+    const dates = [startDs];
+    let stepFn = null;
+    if (repeat === 'weekly') stepFn = (ds) => addDays(ds, 7);
+    else if (repeat === 'biweekly') stepFn = (ds) => addDays(ds, 14);
+    else if (repeat === 'monthly') stepFn = (ds) => addMonthsClamped(ds, 1);
+    if (!stepFn) return dates;
+    let cursor = startDs;
+    let guard = 0;
+    while (guard < 400) {
+      cursor = stepFn(cursor);
+      if (cursor > endBound) break;
+      dates.push(cursor);
+      guard++;
+    }
+    return dates;
+  }
+
   function buildMonthJump() {
     const sel = document.getElementById('monthJump');
     sel.innerHTML = '';
@@ -727,7 +781,7 @@
     body.innerHTML = '';
     document.getElementById('monthJump').value = viewMonth;
 
-    const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+    const firstDay = (new Date(viewYear, viewMonth, 1).getDay() + 6) % 7; // Monday = 0
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
     const filter = document.getElementById('platformFilter').value;
     const statusFilterVal = document.getElementById('statusFilter').value;
@@ -773,7 +827,9 @@
         monthCount += 1;
         const chip = document.createElement('div');
         chip.className = 'chip';
-        chip.style.background = getChipColor(p);
+        const chipStatus = p.status || 'Planned';
+        chip.style.background = getChipBg(chipStatus);
+        chip.style.color = getChipTextColor(chipStatus);
         const platformLabel = (p.platform === 'Instagram' && p.igFormat) ? ('IG ' + p.igFormat) : p.platform;
         const imgCount = postImages(p).length;
         const imgLabel = imgCount > 1 ? (' · ' + imgCount + ' photos') : '';
@@ -912,6 +968,8 @@
     document.getElementById('hashtags').value = post.hashtags || '';
     formImages = postImages(post).map(im => ({ id: im.id, src: im.src }));
     document.getElementById('deleteBtn').style.display = 'inline-block';
+    document.getElementById('repeatField').style.display = 'none';
+    document.getElementById('repeat').value = 'none';
     renderImageThumbs();
     updateIgFormatVisibility();
   }
@@ -927,6 +985,8 @@
     document.getElementById('caption').value = '';
     document.getElementById('hashtags').value = '';
     document.getElementById('imageUrlInput').value = '';
+    document.getElementById('repeatField').style.display = 'block';
+    document.getElementById('repeat').value = 'none';
     formImages = [];
     document.getElementById('deleteBtn').style.display = 'none';
     renderImageThumbs();
@@ -1061,11 +1121,26 @@
       images: formImages.slice()
     };
     const targetDate = document.getElementById('postDate').value || activeDateStr;
+    const repeatValue = activeEditId ? 'none' : document.getElementById('repeat').value;
     const submitBtn = e.target.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
     try {
-      await savePost(targetDate, post);
-      upsertLocalPost(targetDate, post);
+      if (repeatValue === 'none') {
+        await savePost(targetDate, post);
+        upsertLocalPost(targetDate, post);
+      } else {
+        const dates = generateRecurrenceDates(targetDate, repeatValue);
+        const rows = dates.map((ds, idx) => {
+          const occurrence = Object.assign({}, post, { id: idx === 0 ? post.id : (post.id + '_r' + idx) });
+          return postToRow(ds, occurrence);
+        });
+        const { error } = await sb.from(TABLE).upsert(rows);
+        if (error) throw error;
+        dates.forEach((ds, idx) => {
+          const occurrence = Object.assign({}, post, { id: idx === 0 ? post.id : (post.id + '_r' + idx) });
+          upsertLocalPost(ds, occurrence);
+        });
+      }
       render();
       closeModal();
     } catch (err) {
@@ -1203,7 +1278,7 @@
     try {
       await seedExampleIfEmpty();
       await refreshData();
-      setSyncStatus('Synced with team', true);
+      setSyncStatus('Last updated ' + LAST_UPDATED, true);
     } catch (err) {
       setSyncStatus('Offline — changes will not save', false);
       return;
