@@ -408,7 +408,6 @@
         <option>Scheduled</option>
         <option>Published</option>
       </select>
-      <span class="time" id="viewTime"></span>
     </div>
 
     <div class="view-gallery" id="viewGallery"></div>
@@ -510,7 +509,24 @@
   </div>
 </div>
 
-<div id="syncStatus" style="position:fixed; bottom:14px; right:14px; font-size:12px; padding:6px 12px; border-radius:999px; background:var(--card); border:1px solid var(--border); color:var(--text-secondary); z-index:40;">Connecting…</div>
+<div style="position:fixed; bottom:14px; right:14px; display:flex; align-items:center; gap:8px; z-index:40;">
+  <button type="button" id="notesBtn" class="btn-gray" style="font-size:12px; padding:6px 14px; border-radius:999px;">Notes</button>
+  <div id="syncStatus" style="font-size:12px; padding:6px 12px; border-radius:999px; background:var(--card); border:1px solid var(--border); color:var(--text-secondary);">Connecting…</div>
+</div>
+
+<div class="overlay" id="notesOverlay">
+  <div class="modal" style="max-width:420px;">
+    <h2>Notes</h2>
+    <div class="field" style="margin-top:12px;">
+      <textarea id="notesText" rows="14" placeholder="Post types, recurring calendar notes..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <div class="spacer"></div>
+      <button type="button" id="notesCloseBtn">Close</button>
+      <button type="button" id="notesSaveBtn" class="primary">Save</button>
+    </div>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
@@ -558,6 +574,7 @@
   const SUPABASE_URL = 'https://ybjtufzyeyxtfyurisho.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlianR1Znp5ZXl4dGZ5dXJpc2hvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0NzUxNjUsImV4cCI6MjEwMjA1MTE2NX0.VkoZ7bl5cKdpe_QgRr-390Wj0RJ1N4cchwzO1EN3fWQ';
   const TABLE = 'calendar_posts';
+  const NOTES_TABLE = 'calendar_notes';
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   function setSyncStatus(text, ok) {
@@ -643,6 +660,17 @@
     if (error) throw error;
   }
 
+  async function fetchNotes() {
+    const { data: row, error } = await sb.from(NOTES_TABLE).select('*').eq('id', 'main').maybeSingle();
+    if (error) throw error;
+    return row ? (row.content || '') : '';
+  }
+
+  async function saveNotes(content) {
+    const { error } = await sb.from(NOTES_TABLE).upsert({ id: 'main', content, updated_at: new Date().toISOString() });
+    if (error) throw error;
+  }
+
   async function refreshData() {
     data = await fetchAllData();
     render();
@@ -683,6 +711,8 @@
   let activeEditId = null;
   let formImages = [];
   let currentViewPost = null;
+  let notesContent = '';
+  let notesOpen = false;
 
   function copyToClipboard(text, btn) {
     if (!text) return;
@@ -937,7 +967,6 @@
     const statusSelect = document.getElementById('viewStatusSelect');
     statusSelect.value = post.status || 'Planned';
     statusSelect.style.backgroundColor = STATUS_COLORS[post.status] || '#888';
-    document.getElementById('viewTime').textContent = post.time || '';
 
     const gallery = document.getElementById('viewGallery');
     const imgs = postImages(post);
@@ -951,6 +980,17 @@
 
   function closeViewModal() {
     document.getElementById('viewOverlay').classList.remove('open');
+  }
+
+  function openNotesModal() {
+    document.getElementById('notesText').value = notesContent;
+    document.getElementById('notesOverlay').classList.add('open');
+    notesOpen = true;
+  }
+
+  function closeNotesModal() {
+    document.getElementById('notesOverlay').classList.remove('open');
+    notesOpen = false;
   }
 
   function loadPostIntoForm(id) {
@@ -1209,6 +1249,26 @@
     }
   });
 
+  document.getElementById('notesBtn').addEventListener('click', openNotesModal);
+  document.getElementById('notesCloseBtn').addEventListener('click', closeNotesModal);
+  document.getElementById('notesOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'notesOverlay') closeNotesModal();
+  });
+  document.getElementById('notesSaveBtn').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const value = document.getElementById('notesText').value;
+    btn.disabled = true;
+    try {
+      await saveNotes(value);
+      notesContent = value;
+      closeNotesModal();
+    } catch (err) {
+      alert('Could not save notes — check your connection and try again.');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   document.getElementById('prevBtn').addEventListener('click', () => {
     viewMonth -= 1;
     if (viewMonth < 0) { viewMonth = 11; }
@@ -1284,9 +1344,24 @@
       return;
     }
 
+    try {
+      notesContent = await fetchNotes();
+    } catch (err) {
+      // notes are non-critical; ignore failures silently
+    }
+
     sb.channel('calendar_posts_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLE }, () => {
         refreshData();
+      })
+      .subscribe();
+
+    sb.channel('calendar_notes_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: NOTES_TABLE }, (payload) => {
+        if (payload.new && typeof payload.new.content === 'string') {
+          notesContent = payload.new.content;
+          if (notesOpen) document.getElementById('notesText').value = notesContent;
+        }
       })
       .subscribe();
   }
