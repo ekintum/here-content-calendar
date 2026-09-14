@@ -371,18 +371,32 @@
     padding: 16px 18px;
     display: flex; flex-direction: column;
   }
-  .notes-panel-body textarea {
+  #addNoteBtn { margin-bottom: 12px; flex-shrink: 0; align-self: flex-start; }
+  .notes-list {
     flex: 1; min-height: 0;
-    resize: none;
-    line-height: 1.5;
+    overflow-y: auto;
+    display: flex; flex-direction: column;
+    gap: 10px;
   }
-  .notes-panel-footer {
-    padding: 12px 18px;
-    border-top: 1px solid var(--border);
-    display: flex; justify-content: flex-end;
-    flex-shrink: 0;
+  .notes-empty {
+    font-size: 12px; color: var(--text-muted);
+    text-align: center; padding: 24px 0;
   }
-  #notesSaveBtn.published { background: #2f8a3c; border-color: #2f8a3c; }
+  .note-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+  }
+  .note-card textarea { width: 100%; margin-bottom: 8px; line-height: 1.5; }
+  .note-content {
+    font-size: 13px; line-height: 1.5;
+    white-space: pre-wrap; word-break: break-word;
+    margin-bottom: 8px;
+  }
+  .note-meta { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; }
+  .note-actions { display: flex; justify-content: flex-end; gap: 6px; }
+  .note-delete-btn { color: #b0413e; border-color: var(--border); }
+  .note-save-btn.published { background: #2f8a3c; border-color: #2f8a3c; }
 
   @media (max-width: 720px) {
     body { padding: 12px; }
@@ -600,10 +614,8 @@
     <button type="button" class="notes-panel-close" id="notesCloseBtn" aria-label="Close">&times;</button>
   </div>
   <div class="notes-panel-body">
-    <textarea id="notesText" placeholder="Post types, recurring calendar notes..."></textarea>
-  </div>
-  <div class="notes-panel-footer">
-    <button type="button" class="primary" id="notesSaveBtn">Publish</button>
+    <button type="button" class="btn-gray" id="addNoteBtn">+ Add note</button>
+    <div class="notes-list" id="notesList"></div>
   </div>
 </div>
 
@@ -740,13 +752,18 @@
   }
 
   async function fetchNotes() {
-    const { data: row, error } = await sb.from(NOTES_TABLE).select('*').eq('id', 'main').maybeSingle();
+    const { data: rows, error } = await sb.from(NOTES_TABLE).select('*').order('created_at', { ascending: false });
     if (error) throw error;
-    return row ? (row.content || '') : '';
+    return rows || [];
   }
 
-  async function saveNotes(content) {
-    const { error } = await sb.from(NOTES_TABLE).upsert({ id: 'main', content, updated_at: new Date().toISOString() });
+  async function saveNoteRow(row) {
+    const { error } = await sb.from(NOTES_TABLE).upsert(row);
+    if (error) throw error;
+  }
+
+  async function deleteNoteRow(id) {
+    const { error } = await sb.from(NOTES_TABLE).delete().eq('id', id);
     if (error) throw error;
   }
 
@@ -790,8 +807,24 @@
   let activeEditId = null;
   let formImages = [];
   let currentViewPost = null;
-  let notesContent = '';
+  let notesList = [];
   let notesOpen = false;
+  let editingNoteId = null;
+  let isAddingNote = false;
+
+  function escapeHtml(str) {
+    return (str || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function formatNoteTimestamp(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    let hours = d.getHours();
+    const mins = pad2(d.getMinutes());
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12; if (hours === 0) hours = 12;
+    return 'Edited ' + MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear() + ' · ' + hours + ':' + mins + ' ' + ampm;
+  }
 
   function copyToClipboard(text, btn) {
     if (!text) return;
@@ -1063,7 +1096,7 @@
   }
 
   function openNotesModal() {
-    document.getElementById('notesText').value = notesContent;
+    renderNotesList();
     document.getElementById('notesPanel').classList.add('open');
     notesOpen = true;
   }
@@ -1071,11 +1104,136 @@
   function closeNotesModal() {
     document.getElementById('notesPanel').classList.remove('open');
     notesOpen = false;
+    isAddingNote = false;
+    editingNoteId = null;
   }
 
   function toggleNotesModal() {
     if (notesOpen) closeNotesModal();
     else openNotesModal();
+  }
+
+  function renderNoteCard(note, isEditing) {
+    const card = document.createElement('div');
+    card.className = 'note-card';
+    if (note.id) card.dataset.id = note.id;
+
+    if (isEditing) {
+      card.innerHTML =
+        '<textarea rows="5" placeholder="Post types, recurring calendar notes...">' + escapeHtml(note.content || '') + '</textarea>' +
+        '<div class="note-actions">' +
+          '<button type="button" class="note-cancel-btn">Cancel</button>' +
+          '<button type="button" class="note-save-btn primary">Publish</button>' +
+        '</div>';
+    } else {
+      card.innerHTML =
+        '<div class="note-content">' + (note.content ? escapeHtml(note.content) : '<span style="color:var(--text-muted);">(empty note)</span>') + '</div>' +
+        '<div class="note-meta">' + formatNoteTimestamp(note.updated_at) + '</div>' +
+        '<div class="note-actions">' +
+          '<button type="button" class="note-delete-btn">Delete</button>' +
+          '<button type="button" class="note-edit-btn btn-gray">Edit</button>' +
+        '</div>';
+    }
+    return card;
+  }
+
+  function renderNotesList() {
+    const wrap = document.getElementById('notesList');
+    wrap.innerHTML = '';
+
+    if (isAddingNote) {
+      wrap.appendChild(renderNoteCard({ id: null, content: '' }, true));
+    }
+
+    notesList.forEach((note) => {
+      wrap.appendChild(renderNoteCard(note, editingNoteId === note.id));
+    });
+
+    if (!isAddingNote && notesList.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'notes-empty';
+      empty.textContent = 'No notes yet.';
+      wrap.appendChild(empty);
+    }
+
+    wireNoteCardEvents();
+
+    if (isAddingNote) {
+      const ta = wrap.querySelector('.note-card textarea');
+      if (ta) ta.focus();
+    }
+  }
+
+  function wireNoteCardEvents() {
+    const wrap = document.getElementById('notesList');
+
+    wrap.querySelectorAll('.note-edit-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        editingNoteId = btn.closest('.note-card').dataset.id;
+        renderNotesList();
+      });
+    });
+
+    wrap.querySelectorAll('.note-cancel-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const card = btn.closest('.note-card');
+        if (!card.dataset.id) {
+          isAddingNote = false;
+        } else {
+          editingNoteId = null;
+        }
+        renderNotesList();
+      });
+    });
+
+    wrap.querySelectorAll('.note-save-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const card = btn.closest('.note-card');
+        const textarea = card.querySelector('textarea');
+        const content = textarea.value.trim();
+        if (!content) { alert('Note cannot be empty.'); return; }
+        const isNew = !card.dataset.id;
+        const now = new Date().toISOString();
+        const id = card.dataset.id || ('n' + Date.now() + Math.floor(Math.random() * 1000));
+        btn.disabled = true;
+        try {
+          const row = isNew
+            ? { id, content, created_at: now, updated_at: now }
+            : { id, content, updated_at: now };
+          await saveNoteRow(row);
+          if (isNew) {
+            notesList.unshift({ id, content, created_at: now, updated_at: now });
+            isAddingNote = false;
+          } else {
+            const existing = notesList.find((n) => n.id === id);
+            if (existing) { existing.content = content; existing.updated_at = now; }
+            editingNoteId = null;
+          }
+          renderNotesList();
+        } catch (err) {
+          alert('Could not publish this note — check your connection and try again.');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+
+    wrap.querySelectorAll('.note-delete-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const card = btn.closest('.note-card');
+        const id = card.dataset.id;
+        if (!id) return;
+        if (!confirm('Delete this note?')) return;
+        try {
+          await deleteNoteRow(id);
+          notesList = notesList.filter((n) => n.id !== id);
+          if (editingNoteId === id) editingNoteId = null;
+          renderNotesList();
+        } catch (err) {
+          alert('Could not delete this note — check your connection and try again.');
+        }
+      });
+    });
   }
 
   function loadPostIntoForm(id) {
@@ -1336,25 +1494,11 @@
 
   document.getElementById('notesBtn').addEventListener('click', toggleNotesModal);
   document.getElementById('notesCloseBtn').addEventListener('click', closeNotesModal);
-  document.getElementById('notesSaveBtn').addEventListener('click', async (e) => {
-    const btn = e.currentTarget;
-    const value = document.getElementById('notesText').value;
-    const original = btn.textContent;
-    btn.disabled = true;
-    try {
-      await saveNotes(value);
-      notesContent = value;
-      btn.textContent = 'Published';
-      btn.classList.add('published');
-      setTimeout(() => {
-        btn.textContent = original;
-        btn.classList.remove('published');
-      }, 1500);
-    } catch (err) {
-      alert('Could not publish notes — check your connection and try again.');
-    } finally {
-      btn.disabled = false;
-    }
+  document.getElementById('addNoteBtn').addEventListener('click', () => {
+    if (isAddingNote) return;
+    isAddingNote = true;
+    editingNoteId = null;
+    renderNotesList();
   });
 
   document.getElementById('prevBtn').addEventListener('click', () => {
@@ -1433,7 +1577,7 @@
     }
 
     try {
-      notesContent = await fetchNotes();
+      notesList = await fetchNotes();
     } catch (err) {
       // notes are non-critical; ignore failures silently
     }
@@ -1445,10 +1589,13 @@
       .subscribe();
 
     sb.channel('calendar_notes_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: NOTES_TABLE }, (payload) => {
-        if (payload.new && typeof payload.new.content === 'string') {
-          notesContent = payload.new.content;
-          if (notesOpen) document.getElementById('notesText').value = notesContent;
+      .on('postgres_changes', { event: '*', schema: 'public', table: NOTES_TABLE }, async () => {
+        try {
+          const fresh = await fetchNotes();
+          notesList = fresh;
+          if (notesOpen && !isAddingNote && editingNoteId === null) renderNotesList();
+        } catch (err) {
+          // ignore
         }
       })
       .subscribe();
