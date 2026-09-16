@@ -178,7 +178,6 @@
   .week-row .day:nth-child(7) { border-right: none; }
 
   .day-num {
-    font-family: var(--font);
     font-size: 12px;
     font-weight: 600;
     color: var(--text-secondary);
@@ -634,7 +633,7 @@
   const STATUS_COLORS = {
     'Planned': '#888780',
     'Design in progress': '#1169EE',
-    'Ready': '#378add',
+    'Ready': '#7f77dd',
     'Scheduled': '#378add',
     'Published': '#3b6d11'
   };
@@ -653,6 +652,7 @@
     'Scheduled': '#F3FFCF',
     'Ready': '#F3FFCF'
   };
+  const CHIP_STATUS_TEXT = {};
 
   function getChipBg(status) {
     return CHIP_STATUS_BG[status] || CHIP_DEFAULT_BG;
