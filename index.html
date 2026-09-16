@@ -1020,12 +1020,13 @@
           return;
         }
         if (!payload || !payload.id || payload.fromDate === ds) return;
+        moveLocalPost(payload.id, ds);
+        render();
         try {
           await movePostDate(payload.id, ds);
-          moveLocalPost(payload.id, ds);
-          render();
         } catch (err) {
           alert('Could not move this post — check your connection and try again.');
+          refreshData();
         }
       });
 
@@ -1405,43 +1406,48 @@
     };
     const targetDate = document.getElementById('postDate').value || activeDateStr;
     const repeatValue = activeEditId ? 'none' : document.getElementById('repeat').value;
-    const submitBtn = e.target.querySelector('button[type="submit"]');
-    submitBtn.disabled = true;
+
+    // Optimistic update: apply locally and close immediately, sync in the background.
+    let occurrences = [];
+    if (repeatValue === 'none') {
+      occurrences = [{ ds: targetDate, occurrence: post }];
+      upsertLocalPost(targetDate, post);
+    } else {
+      const dates = generateRecurrenceDates(targetDate, repeatValue);
+      occurrences = dates.map((ds, idx) => ({
+        ds,
+        occurrence: Object.assign({}, post, { id: idx === 0 ? post.id : (post.id + '_r' + idx) })
+      }));
+      occurrences.forEach(({ ds, occurrence }) => upsertLocalPost(ds, occurrence));
+    }
+    render();
+    closeModal();
+
     try {
       if (repeatValue === 'none') {
         await savePost(targetDate, post);
-        upsertLocalPost(targetDate, post);
       } else {
-        const dates = generateRecurrenceDates(targetDate, repeatValue);
-        const rows = dates.map((ds, idx) => {
-          const occurrence = Object.assign({}, post, { id: idx === 0 ? post.id : (post.id + '_r' + idx) });
-          return postToRow(ds, occurrence);
-        });
+        const rows = occurrences.map(({ ds, occurrence }) => postToRow(ds, occurrence));
         const { error } = await sb.from(TABLE).upsert(rows);
         if (error) throw error;
-        dates.forEach((ds, idx) => {
-          const occurrence = Object.assign({}, post, { id: idx === 0 ? post.id : (post.id + '_r' + idx) });
-          upsertLocalPost(ds, occurrence);
-        });
       }
-      render();
-      closeModal();
     } catch (err) {
       alert('Could not save this post — check your connection and try again.');
-    } finally {
-      submitBtn.disabled = false;
+      refreshData();
     }
   });
 
   document.getElementById('deleteBtn').addEventListener('click', async () => {
     if (!activeEditId) return;
+    const id = activeEditId;
+    removeLocalPost(id);
+    render();
+    closeModal();
     try {
-      await deletePostRemote(activeEditId);
-      removeLocalPost(activeEditId);
-      render();
-      closeModal();
+      await deletePostRemote(id);
     } catch (err) {
       alert('Could not delete this post — check your connection and try again.');
+      refreshData();
     }
   });
 
@@ -1458,15 +1464,23 @@
 
   document.getElementById('viewStatusSelect').addEventListener('change', async (e) => {
     if (!currentViewPost) return;
+    const id = currentViewPost.id;
+    const prevStatus = currentViewPost.status;
     const newStatus = e.target.value;
     e.target.style.backgroundColor = STATUS_COLORS[newStatus] || '#888';
+    currentViewPost.status = newStatus;
+    Object.keys(data).forEach(ds => {
+      const p = data[ds].find(p => p.id === id);
+      if (p) p.status = newStatus;
+    });
+    render();
     try {
-      const { error } = await sb.from(TABLE).update({ status: newStatus }).eq('id', currentViewPost.id);
+      const { error } = await sb.from(TABLE).update({ status: newStatus }).eq('id', id);
       if (error) throw error;
-      currentViewPost.status = newStatus;
-      render();
     } catch (err) {
       alert('Could not update status — check your connection and try again.');
+      currentViewPost.status = prevStatus;
+      refreshData();
     }
   });
 
@@ -1482,13 +1496,15 @@
   });
   document.getElementById('viewDeleteBtn').addEventListener('click', async () => {
     if (!activeEditId) return;
+    const id = activeEditId;
+    removeLocalPost(id);
+    render();
+    closeViewModal();
     try {
-      await deletePostRemote(activeEditId);
-      removeLocalPost(activeEditId);
-      render();
-      closeViewModal();
+      await deletePostRemote(id);
     } catch (err) {
       alert('Could not delete this post — check your connection and try again.');
+      refreshData();
     }
   });
 
@@ -1582,9 +1598,14 @@
       // notes are non-critical; ignore failures silently
     }
 
+    let refreshDebounce = null;
     sb.channel('calendar_posts_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLE }, () => {
-        refreshData();
+        // Coalesce bursts of change events (e.g. recurring inserts, or the
+        // echo of our own optimistic writes) into a single background refetch
+        // so it doesn't stack extra full re-renders on top of the local update.
+        clearTimeout(refreshDebounce);
+        refreshDebounce = setTimeout(refreshData, 500);
       })
       .subscribe();
 
