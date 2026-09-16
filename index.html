@@ -45,7 +45,7 @@
     --text-muted: #9299ab;
     --accent: #2e5fd9;
     --accent-light: #eaf0ff;
-    --today: #ff8a3d;
+    --today: #000000;
     --radius: 8px;
     --font: 'Golos Text', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --font-title: 'PP Radio Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -70,7 +70,7 @@
   }
   .topbar h1 {
     font-family: var(--font-title);
-    font-size: 22px;
+    font-size: 27px;
     font-weight: 400;
     margin: 0;
   }
@@ -640,7 +640,7 @@
   const STATUS_ICONS = {
     'Planned': { char: '\u{1F914}', color: null },
     'Design in progress': { char: '✏️', color: null },
-    'Ready': { char: '✓', color: '#62677a' },
+    'Ready': { char: '✓', color: null },
     'Scheduled': { char: '\u{1F550}', color: null },
     'Published': { char: '✅', color: null }
   };
@@ -648,10 +648,13 @@
   const CHIP_DEFAULT_BG = '#E5E5E5';
   const CHIP_STATUS_BG = {
     'Published': '#DAFF70',
-    'Design in progress': '#1169EE'
+    'Design in progress': '#1169EE',
+    'Scheduled': '#F3FFCF',
+    'Ready': '#1169EE'
   };
   const CHIP_STATUS_TEXT = {
-    'Design in progress': '#ffffff'
+    'Design in progress': '#ffffff',
+    'Ready': '#ffffff'
   };
 
   function getChipBg(status) {
