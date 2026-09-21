@@ -649,7 +649,7 @@
   const CHIP_STATUS_BG = {
     'Published': '#DAFF70',
     'Design in progress': '#E5E5E5',
-    'Scheduled': '#F3FFCF',
+    'Scheduled': '#DAFF70',
     'Ready': '#F3FFCF'
   };
   const CHIP_STATUS_TEXT = {};
@@ -1508,8 +1508,15 @@
     }
   });
 
-  document.getElementById('notesBtn').addEventListener('click', toggleNotesModal);
+  document.getElementById('notesBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleNotesModal();
+  });
   document.getElementById('notesCloseBtn').addEventListener('click', closeNotesModal);
+  document.getElementById('notesPanel').addEventListener('click', (e) => e.stopPropagation());
+  document.addEventListener('click', () => {
+    if (notesOpen) closeNotesModal();
+  });
   document.getElementById('addNoteBtn').addEventListener('click', () => {
     if (isAddingNote) return;
     isAddingNote = true;
