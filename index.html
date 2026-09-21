@@ -469,6 +469,7 @@
   <div class="controls" style="margin-bottom:14px;">
     <button class="icon" id="prevBtn">&larr;</button>
     <select id="monthJump"></select>
+    <select id="yearJump"></select>
     <button class="icon" id="nextBtn">&rarr;</button>
     <button id="todayBtn" class="btn-gray">Today</button>
   </div>
@@ -530,7 +531,7 @@
 
       <div class="field">
         <label for="postDate">Date</label>
-        <input type="date" id="postDate" min="2026-01-01" max="2026-12-31">
+        <input type="date" id="postDate" min="2025-01-01" max="2031-12-31">
       </div>
       <div class="field" id="repeatField">
         <label for="repeat">Repeats</label>
@@ -635,6 +636,8 @@
 <script>
   const LAST_UPDATED = 'Aug 17, 2026 · 1:20 PM PT';
   const YEAR = 2026;
+  const MIN_YEAR = 2025;
+  const MAX_YEAR = 2031;
   const WEEKDAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const PLATFORM_COLORS = {
@@ -963,8 +966,8 @@
 
   let data = {};
   let today = new Date();
-  let viewYear = YEAR;
-  let viewMonth = (today.getFullYear() === YEAR) ? today.getMonth() : 0;
+  let viewYear = (today.getFullYear() >= MIN_YEAR && today.getFullYear() <= MAX_YEAR) ? today.getFullYear() : YEAR;
+  let viewMonth = (viewYear === today.getFullYear()) ? today.getMonth() : 0;
   let activeDateStr = null;
   let activeEditId = null;
   let formImages = [];
@@ -1079,8 +1082,19 @@
     return dateStr(targetYear, targetMonth, day);
   }
 
+  function addCalendarMonths(ds, months) {
+    const [y, m, d] = ds.split('-').map(Number);
+    const idx = (m - 1) + months;
+    const targetYear = y + Math.floor(idx / 12);
+    const targetMonth = ((idx % 12) + 12) % 12;
+    const clampedDay = Math.min(d, daysInMonth(targetYear, targetMonth));
+    return dateStr(targetYear, targetMonth, clampedDay);
+  }
+
   function generateRecurrenceDates(startDs, repeat) {
-    const endBound = YEAR + '-12-31';
+    // Recurring posts run for a full 12 months from their start date,
+    // regardless of which month/year they start in.
+    const endBound = addCalendarMonths(startDs, 12);
     const dates = [startDs];
     let stepFn = null;
     if (repeat === 'weekly') stepFn = (ds) => addDays(ds, 7);
@@ -1107,7 +1121,7 @@
     MONTHS.forEach((m, i) => {
       const opt = document.createElement('option');
       opt.value = i;
-      opt.textContent = m + ' ' + YEAR;
+      opt.textContent = m;
       sel.appendChild(opt);
     });
     sel.value = viewMonth;
@@ -1117,10 +1131,27 @@
     });
   }
 
+  function buildYearJump() {
+    const sel = document.getElementById('yearJump');
+    sel.innerHTML = '';
+    for (let y = MIN_YEAR; y <= MAX_YEAR; y++) {
+      const opt = document.createElement('option');
+      opt.value = y;
+      opt.textContent = y;
+      sel.appendChild(opt);
+    }
+    sel.value = viewYear;
+    sel.addEventListener('change', () => {
+      viewYear = parseInt(sel.value, 10);
+      render();
+    });
+  }
+
   function renderCalendar() {
     const body = document.getElementById('calendarBody');
     body.innerHTML = '';
     document.getElementById('monthJump').value = viewMonth;
+    document.getElementById('yearJump').value = viewYear;
 
     const firstDay = (new Date(viewYear, viewMonth, 1).getDay() + 6) % 7; // Monday = 0
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -1173,7 +1204,6 @@
         chip.style.color = getChipTextColor(chipStatus);
         const platformLabel = (p.platform === 'Instagram' && p.igFormat) ? ('IG ' + p.igFormat) : p.platform;
         const imgCount = postImages(p).length;
-        const imgLabel = imgCount > 1 ? (' · ' + imgCount + ' photos') : '';
         const statusIcon = STATUS_ICONS[p.status] || STATUS_ICONS['Planned'];
         const icon = document.createElement('span');
         icon.className = 'chip-status-icon';
@@ -1181,10 +1211,11 @@
         if (statusIcon.color) icon.style.color = statusIcon.color;
         const label = document.createElement('span');
         label.className = 'chip-label';
-        label.textContent = platformLabel + imgLabel + (p.caption ? ' · ' + p.caption.slice(0, 16) : '');
+        label.textContent = platformLabel + (p.caption ? ' · ' + p.caption.slice(0, 16) : '');
         chip.appendChild(icon);
         chip.appendChild(label);
-        chip.title = (p.status || 'Planned') + (p.caption ? ' — ' + p.caption : '');
+        const photoNote = imgCount > 1 ? (' · ' + imgCount + ' photos') : '';
+        chip.title = (p.status || 'Planned') + (p.caption ? ' — ' + p.caption : '') + photoNote;
         chip.addEventListener('click', (e) => {
           e.stopPropagation();
           openViewModal(ds, p.id);
@@ -1231,7 +1262,8 @@
     document.getElementById('statMonth').textContent = monthCount;
 
     let yearCount = 0;
-    Object.keys(data).forEach(k => { yearCount += data[k].length; });
+    const yearPrefix = viewYear + '-';
+    Object.keys(data).forEach(k => { if (k.startsWith(yearPrefix)) yearCount += data[k].length; });
     document.getElementById('statYear').textContent = yearCount;
   }
 
@@ -1735,16 +1767,18 @@
 
   document.getElementById('prevBtn').addEventListener('click', () => {
     viewMonth -= 1;
-    if (viewMonth < 0) { viewMonth = 11; }
+    if (viewMonth < 0) { viewMonth = 11; viewYear = Math.max(MIN_YEAR, viewYear - 1); }
     render();
   });
   document.getElementById('nextBtn').addEventListener('click', () => {
     viewMonth += 1;
-    if (viewMonth > 11) { viewMonth = 0; }
+    if (viewMonth > 11) { viewMonth = 0; viewYear = Math.min(MAX_YEAR, viewYear + 1); }
     render();
   });
   document.getElementById('todayBtn').addEventListener('click', () => {
-    viewMonth = (today.getFullYear() === YEAR) ? today.getMonth() : 0;
+    const y = today.getFullYear();
+    viewYear = (y >= MIN_YEAR && y <= MAX_YEAR) ? y : YEAR;
+    viewMonth = (viewYear === y) ? today.getMonth() : 0;
     render();
   });
   document.getElementById('platformFilter').addEventListener('change', render);
@@ -1799,6 +1833,7 @@
 
   async function initApp() {
     buildMonthJump();
+    buildYearJump();
     try {
       await seedExampleIfEmpty();
       await refreshData();
