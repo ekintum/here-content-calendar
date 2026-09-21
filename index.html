@@ -605,8 +605,8 @@
 
 <div class="overlay" id="deleteChoiceOverlay">
   <div class="modal" style="max-width:340px;">
-    <h2>Delete recurring post</h2>
-    <div class="date-line">This post is part of a repeating series. What would you like to delete?</div>
+    <h2 id="seriesChoiceTitle">Recurring post</h2>
+    <div class="date-line" id="seriesChoiceDesc">This post is part of a repeating series.</div>
     <div class="modal-actions" style="flex-direction:column; align-items:stretch; gap:8px; margin-top:14px;">
       <button type="button" id="deleteThisBtn">This event</button>
       <button type="button" id="deleteAllBtn">All events in the series</button>
@@ -827,25 +827,56 @@
     return ids;
   }
 
-  let pendingDeleteId = null;
-  let pendingDeleteOnDone = null;
-
-  function requestDeletePost(id, onDone) {
-    const seriesIds = getSeriesPostIds(id);
-    if (seriesIds.length > 1) {
-      pendingDeleteId = id;
-      pendingDeleteOnDone = onDone;
-      document.getElementById('deleteChoiceOverlay').classList.add('open');
-    } else {
-      performDelete([id]);
-      onDone();
+  function findPostLocation(id) {
+    for (const ds of Object.keys(data)) {
+      const p = data[ds].find(x => x.id === id);
+      if (p) return { ds, post: p };
     }
+    return null;
+  }
+
+  function daysBetween(dsFrom, dsTo) {
+    const [y1, m1, d1] = dsFrom.split('-').map(Number);
+    const [y2, m2, d2] = dsTo.split('-').map(Number);
+    const t1 = Date.UTC(y1, m1 - 1, d1);
+    const t2 = Date.UTC(y2, m2 - 1, d2);
+    return Math.round((t2 - t1) / 86400000);
+  }
+
+  // Generic "This event / All events in the series" chooser, reused for
+  // deleting, editing, and moving recurring posts.
+  let seriesChoiceOnThis = null;
+  let seriesChoiceOnAll = null;
+  let seriesChoiceOnCancel = null;
+
+  function requestSeriesChoice(id, { title, description, onThis, onAll, onCancel }) {
+    const seriesIds = getSeriesPostIds(id);
+    if (seriesIds.length <= 1) {
+      onThis();
+      return;
+    }
+    document.getElementById('seriesChoiceTitle').textContent = title;
+    document.getElementById('seriesChoiceDesc').textContent = description;
+    seriesChoiceOnThis = onThis;
+    seriesChoiceOnAll = onAll;
+    seriesChoiceOnCancel = onCancel || null;
+    document.getElementById('deleteChoiceOverlay').classList.add('open');
   }
 
   function closeDeleteChoiceModal() {
     document.getElementById('deleteChoiceOverlay').classList.remove('open');
-    pendingDeleteId = null;
-    pendingDeleteOnDone = null;
+    seriesChoiceOnThis = null;
+    seriesChoiceOnAll = null;
+    seriesChoiceOnCancel = null;
+  }
+
+  function requestDeletePost(id, onDone) {
+    requestSeriesChoice(id, {
+      title: 'Delete recurring post',
+      description: 'This post is part of a repeating series. What would you like to delete?',
+      onThis: () => { performDelete([id]); onDone(); },
+      onAll: () => { performDelete(getSeriesPostIds(id)); onDone(); }
+    });
   }
 
   async function performDelete(ids) {
@@ -857,6 +888,77 @@
       alert('Could not delete this post — check your connection and try again.');
       refreshData();
     }
+  }
+
+  function applyPostEdit(id, targetDate, post) {
+    const original = findPostLocation(id);
+    const originalDs = original ? original.ds : targetDate;
+
+    requestSeriesChoice(id, {
+      title: 'Edit recurring post',
+      description: 'This post is part of a repeating series. Apply your changes to just this event, or to all events in the series?',
+      onThis: () => {
+        upsertLocalPost(targetDate, post);
+        render();
+        closeModal();
+        savePost(targetDate, post).catch(() => {
+          alert('Could not save this post — check your connection and try again.');
+          refreshData();
+        });
+      },
+      onAll: () => {
+        const dayDelta = daysBetween(originalDs, targetDate);
+        const seriesIds = getSeriesPostIds(id);
+        const updates = seriesIds.map(sid => {
+          const loc = findPostLocation(sid);
+          const baseDs = loc ? loc.ds : originalDs;
+          const ds = sid === id ? targetDate : addDays(baseDs, dayDelta);
+          return { ds, occurrence: Object.assign({}, post, { id: sid }) };
+        });
+        updates.forEach(({ ds, occurrence }) => upsertLocalPost(ds, occurrence));
+        render();
+        closeModal();
+        const rows = updates.map(({ ds, occurrence }) => postToRow(ds, occurrence));
+        sb.from(TABLE).upsert(rows).then(({ error }) => {
+          if (error) {
+            alert('Could not save this post — check your connection and try again.');
+            refreshData();
+          }
+        });
+      }
+    });
+  }
+
+  function applyPostMove(id, toDate, onFail) {
+    requestSeriesChoice(id, {
+      title: 'Move recurring post',
+      description: 'This post is part of a repeating series. Move just this event, or all events in the series?',
+      onThis: () => {
+        const fromLoc = findPostLocation(id);
+        const fromDate = fromLoc ? fromLoc.ds : toDate;
+        moveLocalPost(id, toDate);
+        render();
+        movePostDate(id, toDate).catch(() => {
+          onFail();
+        });
+      },
+      onAll: () => {
+        const fromLoc = findPostLocation(id);
+        const fromDate = fromLoc ? fromLoc.ds : toDate;
+        const dayDelta = daysBetween(fromDate, toDate);
+        const seriesIds = getSeriesPostIds(id);
+        const moves = seriesIds.map(sid => {
+          const loc = findPostLocation(sid);
+          const newDs = sid === id ? toDate : addDays(loc ? loc.ds : fromDate, dayDelta);
+          return { id: sid, ds: newDs };
+        });
+        moves.forEach(({ id: sid, ds }) => moveLocalPost(sid, ds));
+        render();
+        Promise.all(moves.map(({ id: sid, ds }) => movePostDate(sid, ds))).catch(() => {
+          onFail();
+        });
+      }
+    });
   }
 
   let data = {};
@@ -933,14 +1035,48 @@
     return dt.toISOString().slice(0, 10);
   }
 
-  function addMonthsClamped(ds, months) {
+  // Monthly recurrence keeps the same weekday-of-month pattern (e.g. "every
+  // last Monday" or "every 3rd Tuesday") rather than the same day-of-month
+  // number, matching how Google Calendar handles "monthly on the ..." rules.
+  function daysInMonth(y, m) {
+    // m is 0-based
+    return new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  }
+
+  function nthWeekdayOfMonth(y, m, weekday, n) {
+    const firstWeekday = new Date(Date.UTC(y, m, 1)).getUTCDay();
+    return 1 + ((weekday - firstWeekday + 7) % 7) + (n - 1) * 7;
+  }
+
+  function lastWeekdayOfMonth(y, m, weekday) {
+    const total = daysInMonth(y, m);
+    const lastWeekday = new Date(Date.UTC(y, m, total)).getUTCDay();
+    return total - ((lastWeekday - weekday + 7) % 7);
+  }
+
+  function getMonthlyOccurrenceInfo(ds) {
     const [y, m, d] = ds.split('-').map(Number);
-    let idx = (m - 1) + months;
+    const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+    const n = Math.floor((d - 1) / 7) + 1;
+    const isLast = d + 7 > daysInMonth(y, m - 1);
+    return { weekday, n, isLast };
+  }
+
+  function addMonthsSameWeekday(ds, months, occurrenceInfo) {
+    const [y, m] = ds.split('-').map(Number);
+    const idx = (m - 1) + months;
     const targetYear = y + Math.floor(idx / 12);
     const targetMonth = ((idx % 12) + 12) % 12;
-    const daysInTargetMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
-    const clampedDay = Math.min(d, daysInTargetMonth);
-    return new Date(Date.UTC(targetYear, targetMonth, clampedDay)).toISOString().slice(0, 10);
+    let day;
+    if (occurrenceInfo.isLast) {
+      day = lastWeekdayOfMonth(targetYear, targetMonth, occurrenceInfo.weekday);
+    } else {
+      day = nthWeekdayOfMonth(targetYear, targetMonth, occurrenceInfo.weekday, occurrenceInfo.n);
+      if (day > daysInMonth(targetYear, targetMonth)) {
+        day = lastWeekdayOfMonth(targetYear, targetMonth, occurrenceInfo.weekday);
+      }
+    }
+    return dateStr(targetYear, targetMonth, day);
   }
 
   function generateRecurrenceDates(startDs, repeat) {
@@ -949,7 +1085,10 @@
     let stepFn = null;
     if (repeat === 'weekly') stepFn = (ds) => addDays(ds, 7);
     else if (repeat === 'biweekly') stepFn = (ds) => addDays(ds, 14);
-    else if (repeat === 'monthly') stepFn = (ds) => addMonthsClamped(ds, 1);
+    else if (repeat === 'monthly') {
+      const occurrenceInfo = getMonthlyOccurrenceInfo(startDs);
+      stepFn = (ds) => addMonthsSameWeekday(ds, 1, occurrenceInfo);
+    }
     if (!stepFn) return dates;
     let cursor = startDs;
     let guard = 0;
@@ -1070,7 +1209,7 @@
         cell.classList.add('drag-over');
       });
       cell.addEventListener('dragleave', () => cell.classList.remove('drag-over'));
-      cell.addEventListener('drop', async (e) => {
+      cell.addEventListener('drop', (e) => {
         e.preventDefault();
         cell.classList.remove('drag-over');
         let payload;
@@ -1080,14 +1219,10 @@
           return;
         }
         if (!payload || !payload.id || payload.fromDate === ds) return;
-        moveLocalPost(payload.id, ds);
-        render();
-        try {
-          await movePostDate(payload.id, ds);
-        } catch (err) {
+        applyPostMove(payload.id, ds, () => {
           alert('Could not move this post — check your connection and try again.');
           refreshData();
-        }
+        });
       });
 
       weekRow.appendChild(cell);
@@ -1465,7 +1600,14 @@
       images: formImages.slice()
     };
     const targetDate = document.getElementById('postDate').value || activeDateStr;
-    const repeatValue = activeEditId ? 'none' : document.getElementById('repeat').value;
+
+    if (activeEditId) {
+      // Editing an existing post: if it's part of a series, ask which occurrences to update.
+      applyPostEdit(activeEditId, targetDate, post);
+      return;
+    }
+
+    const repeatValue = document.getElementById('repeat').value;
 
     // Optimistic update: apply locally and close immediately, sync in the background.
     let occurrences = [];
@@ -1551,24 +1693,28 @@
   });
 
   document.getElementById('deleteThisBtn').addEventListener('click', () => {
-    const id = pendingDeleteId;
-    const onDone = pendingDeleteOnDone;
+    const cb = seriesChoiceOnThis;
     closeDeleteChoiceModal();
-    performDelete([id]);
-    if (onDone) onDone();
+    if (cb) cb();
   });
 
   document.getElementById('deleteAllBtn').addEventListener('click', () => {
-    const ids = getSeriesPostIds(pendingDeleteId);
-    const onDone = pendingDeleteOnDone;
+    const cb = seriesChoiceOnAll;
     closeDeleteChoiceModal();
-    performDelete(ids);
-    if (onDone) onDone();
+    if (cb) cb();
   });
 
-  document.getElementById('deleteChoiceCancelBtn').addEventListener('click', closeDeleteChoiceModal);
+  document.getElementById('deleteChoiceCancelBtn').addEventListener('click', () => {
+    const cb = seriesChoiceOnCancel;
+    closeDeleteChoiceModal();
+    if (cb) cb();
+  });
   document.getElementById('deleteChoiceOverlay').addEventListener('click', (e) => {
-    if (e.target.id === 'deleteChoiceOverlay') closeDeleteChoiceModal();
+    if (e.target.id === 'deleteChoiceOverlay') {
+      const cb = seriesChoiceOnCancel;
+      closeDeleteChoiceModal();
+      if (cb) cb();
+    }
   });
 
   document.getElementById('notesBtn').addEventListener('click', (e) => {
