@@ -603,6 +603,18 @@
   </div>
 </div>
 
+<div class="overlay" id="deleteChoiceOverlay">
+  <div class="modal" style="max-width:340px;">
+    <h2>Delete recurring post</h2>
+    <div class="date-line">This post is part of a repeating series. What would you like to delete?</div>
+    <div class="modal-actions" style="flex-direction:column; align-items:stretch; gap:8px; margin-top:14px;">
+      <button type="button" id="deleteThisBtn">This event</button>
+      <button type="button" id="deleteAllBtn">All events in the series</button>
+      <button type="button" id="deleteChoiceCancelBtn" class="btn-gray">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div style="position:fixed; bottom:14px; right:14px; display:flex; align-items:center; gap:8px; z-index:40;">
   <button type="button" id="notesBtn" class="btn-gray" style="font-size:12px; padding:6px 14px; border-radius:999px;">Notes</button>
   <div id="syncStatus" style="font-size:12px; padding:6px 12px; border-radius:999px; background:var(--card); border:1px solid var(--border); color:var(--text-secondary);">Connecting…</div>
@@ -797,6 +809,54 @@
       }
     });
     if (moved) upsertLocalPost(toDate, moved);
+  }
+
+  function getSeriesBaseId(id) {
+    const m = /^(.*)_r\d+$/.exec(id);
+    return m ? m[1] : id;
+  }
+
+  function getSeriesPostIds(id) {
+    const baseId = getSeriesBaseId(id);
+    const ids = [];
+    Object.keys(data).forEach(ds => {
+      data[ds].forEach(p => {
+        if (getSeriesBaseId(p.id) === baseId) ids.push(p.id);
+      });
+    });
+    return ids;
+  }
+
+  let pendingDeleteId = null;
+  let pendingDeleteOnDone = null;
+
+  function requestDeletePost(id, onDone) {
+    const seriesIds = getSeriesPostIds(id);
+    if (seriesIds.length > 1) {
+      pendingDeleteId = id;
+      pendingDeleteOnDone = onDone;
+      document.getElementById('deleteChoiceOverlay').classList.add('open');
+    } else {
+      performDelete([id]);
+      onDone();
+    }
+  }
+
+  function closeDeleteChoiceModal() {
+    document.getElementById('deleteChoiceOverlay').classList.remove('open');
+    pendingDeleteId = null;
+    pendingDeleteOnDone = null;
+  }
+
+  async function performDelete(ids) {
+    ids.forEach(removeLocalPost);
+    render();
+    try {
+      await Promise.all(ids.map(id => deletePostRemote(id)));
+    } catch (err) {
+      alert('Could not delete this post — check your connection and try again.');
+      refreshData();
+    }
   }
 
   let data = {};
@@ -1437,18 +1497,9 @@
     }
   });
 
-  document.getElementById('deleteBtn').addEventListener('click', async () => {
+  document.getElementById('deleteBtn').addEventListener('click', () => {
     if (!activeEditId) return;
-    const id = activeEditId;
-    removeLocalPost(id);
-    render();
-    closeModal();
-    try {
-      await deletePostRemote(id);
-    } catch (err) {
-      alert('Could not delete this post — check your connection and try again.');
-      refreshData();
-    }
+    requestDeletePost(activeEditId, closeModal);
   });
 
   document.getElementById('cancelBtn').addEventListener('click', closeModal);
@@ -1494,18 +1545,30 @@
     closeViewModal();
     openEditModal(ds, id);
   });
-  document.getElementById('viewDeleteBtn').addEventListener('click', async () => {
+  document.getElementById('viewDeleteBtn').addEventListener('click', () => {
     if (!activeEditId) return;
-    const id = activeEditId;
-    removeLocalPost(id);
-    render();
-    closeViewModal();
-    try {
-      await deletePostRemote(id);
-    } catch (err) {
-      alert('Could not delete this post — check your connection and try again.');
-      refreshData();
-    }
+    requestDeletePost(activeEditId, closeViewModal);
+  });
+
+  document.getElementById('deleteThisBtn').addEventListener('click', () => {
+    const id = pendingDeleteId;
+    const onDone = pendingDeleteOnDone;
+    closeDeleteChoiceModal();
+    performDelete([id]);
+    if (onDone) onDone();
+  });
+
+  document.getElementById('deleteAllBtn').addEventListener('click', () => {
+    const ids = getSeriesPostIds(pendingDeleteId);
+    const onDone = pendingDeleteOnDone;
+    closeDeleteChoiceModal();
+    performDelete(ids);
+    if (onDone) onDone();
+  });
+
+  document.getElementById('deleteChoiceCancelBtn').addEventListener('click', closeDeleteChoiceModal);
+  document.getElementById('deleteChoiceOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'deleteChoiceOverlay') closeDeleteChoiceModal();
   });
 
   document.getElementById('notesBtn').addEventListener('click', (e) => {
